@@ -1,0 +1,48 @@
+import { CATEGORY_BY_ID } from "@/content/categories";
+import { priors, posterior, pointsFromProbability, answerKey } from "@/engine/rarity";
+import type { EngineServices, RevealPayload, Round } from "@/engine/types";
+
+/** What the player sees once a round is over. Only now are answers disclosed. */
+export async function buildReveal(round: Round, services: EngineServices, answers?: { answerKey?: string | null; label?: string }[]): Promise<RevealPayload> {
+  const s = round.secret;
+  const out: RevealPayload = {
+    answerLabel: s.answerLabel,
+    contentKey: round.contentKey,
+    correctOptionId: s.correctOptionId,
+    order: s.order,
+    groups: s.groups,
+    explanation: s.explanation,
+    source: s.source,
+  };
+  if (round.handler === "rare" || (round.handler === "multi" && s.data?.categoryId)) {
+    const cat = CATEGORY_BY_ID.get(s.data!.categoryId as string)!;
+    const letter = s.data?.letter as string | undefined;
+    const stats = await services.rarity.stats(cat.id);
+    const pr = priors(cat);
+    const eligible = cat.entries.filter((e) => !letter || e.name.toUpperCase().startsWith(letter));
+    const scored = eligible.map((e) => {
+      const k = answerKey(e);
+      const p = posterior(pr.get(k) ?? 0, stats.counts.get(k) ?? 0, stats.total);
+      return { name: e.name, p, points: pointsFromProbability(p), tier: e.tier };
+    });
+    scored.sort((a, b) => b.p - a.p);
+    const rare = scored.filter((x) => x.tier >= 3);
+    const pickRare = rare.length ? [rare[Math.floor(Math.random() * rare.length)], rare[Math.floor(Math.random() * rare.length)], rare[Math.floor(Math.random() * rare.length)]] : [];
+    out.answerLabel = letter ? `Any valid ${cat.label.toLowerCase()} answer starting with ${letter}` : `Any valid ${cat.label.toLowerCase()} answer`;
+    out.extra = {
+      mostCommon: scored.slice(0, 6).map((x) => ({ name: x.name, points: x.points, percent: Math.round(x.p * 1000) / 10 })),
+      rareIdeas: [...new Map(pickRare.map((x) => [x.name, x])).values()].map((x) => ({ name: x.name, points: x.points })),
+      validCount: eligible.length,
+      observedAnswers: stats.total,
+      answers: answers ?? [],
+    };
+  }
+  if (round.handler === "multi" && s.data?.accept) {
+    out.extra = { ...(out.extra ?? {}), validExamples: (s.data.accept as { name: string }[]).slice(0, 12).map((a) => a.name), validCount: (s.data.accept as unknown[]).length };
+  }
+  if (round.handler === "map") out.extra = { country: s.answerLabel };
+  if (round.handler === "memory" || round.handler === "wager") out.extra = { options: s.data?.options, question: s.data?.question };
+  if (round.handler === "chain") out.extra = {};
+  if (s.numeric) out.extra = { ...(out.extra ?? {}), value: s.numeric.value, unit: s.numeric.unit };
+  return out;
+}

@@ -1,0 +1,480 @@
+// PartyVerse database schema.
+// A "Player" is the identity used everywhere in gameplay. Every registered
+// User owns exactly one Player; guests get a Player row with no User.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+enum QuestionStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+  REJECTED
+  RETIRED
+}
+
+enum QuestionOrigin {
+  DATASET
+  ADMIN
+  AI
+  IMPORT
+}
+
+enum RoomStatus {
+  LOBBY
+  PLAYING
+  FINISHED
+  CLOSED
+}
+
+enum FriendStatus {
+  PENDING
+  ACCEPTED
+  BLOCKED
+}
+
+enum ReportStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+// ───────────── Identity ─────────────
+
+model User {
+  id           String    @id @default(cuid())
+  username     String    @unique
+  email        String?   @unique
+  passwordHash String
+  role         Role      @default(USER)
+  bannedAt     DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  player   Player?
+  sessions Session[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userAgent String?
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Player {
+  id          String   @id @default(cuid())
+  userId      String?  @unique
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isGuest     Boolean  @default(true)
+  displayName String
+  avatar      String   @default("🦊")
+  color       String   @default("#8b5cf6")
+  createdAt   DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  profile         Profile?
+  history         PlayerQuestionHistory[]
+  submissions     Submission[]
+  scores          Score[]
+  achievements    PlayerAchievement[]
+  ratings         Rating[]
+  participations  RoomParticipant[]
+  friendsSent     Friendship[]            @relation("FriendRequester")
+  friendsReceived Friendship[]            @relation("FriendAddressee")
+  rareVotes       RareAnswerVote[]
+  gameStats       PlayerGameStat[]
+
+  @@index([lastSeenAt])
+}
+
+model Profile {
+  playerId           String   @id
+  player             Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  bio                String?  @db.VarChar(280)
+  xp                 Int      @default(0)
+  level              Int      @default(1)
+  wins               Int      @default(0)
+  gamesPlayed        Int      @default(0)
+  roundsPlayed       Int      @default(0)
+  correctAnswers     Int      @default(0)
+  bestStreak         Int      @default(0)
+  favoriteCategories String[] @default([])
+  updatedAt          DateTime @updatedAt
+}
+
+model PlayerGameStat {
+  playerId    String
+  player      Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  gameSlug    String
+  plays       Int      @default(0)
+  rounds      Int      @default(0)
+  correct     Int      @default(0)
+  bestScore   Int      @default(0)
+  // Rolling accuracy in [0,1] used by adaptive difficulty.
+  skill       Float    @default(0.5)
+  updatedAt   DateTime @updatedAt
+
+  @@id([playerId, gameSlug])
+  @@index([gameSlug, bestScore])
+}
+
+model Friendship {
+  id          String       @id @default(cuid())
+  requesterId String
+  addresseeId String
+  requester   Player       @relation("FriendRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee   Player       @relation("FriendAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+  status      FriendStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+
+  @@unique([requesterId, addresseeId])
+  @@index([addresseeId, status])
+}
+
+// ───────────── Catalogue ─────────────
+
+model Game {
+  slug      String   @id
+  name      String
+  enabled   Boolean  @default(true)
+  // Scoring overrides etc. Validated by zod in the admin API.
+  config    Json     @default("{}")
+  updatedAt DateTime @updatedAt
+}
+
+model Category {
+  slug      String     @id
+  name      String
+  questions Question[]
+}
+
+model ContentSource {
+  id         String     @id @default(cuid())
+  name       String     @unique
+  url        String?
+  license    String
+  notes      String?
+  verifiedAt DateTime?
+  questions  Question[]
+}
+
+model Question {
+  id           String         @id @default(cuid())
+  gameSlug     String
+  categorySlug String?
+  category     Category?      @relation(fields: [categorySlug], references: [slug])
+  // Stable identity of the exact question (game+mode+subject+variant).
+  contentKey   String         @unique
+  // Identity of what the question is ABOUT; used to block near-duplicates
+  // (same movie asked via a different clue).
+  subjectKey   String
+  topic        String
+  difficulty   Int            @default(2)
+  region       String?
+  language     String         @default("en")
+  popularity   Float          @default(0.5)
+  prompt       Json
+  // Normalized text fingerprint for near-duplicate detection.
+  fingerprint  String
+  status       QuestionStatus @default(PUBLISHED)
+  origin       QuestionOrigin @default(DATASET)
+  sourceId     String?
+  source       ContentSource? @relation(fields: [sourceId], references: [id])
+  playCount    Int            @default(0)
+  correctCount Int            @default(0)
+  reportCount  Int            @default(0)
+  lastPlayedAt DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  variants QuestionVariant[]
+  answers  VerifiedAnswer[]
+  reports  ContentReport[]
+
+  @@index([gameSlug, status, difficulty])
+  @@index([subjectKey])
+  @@index([fingerprint])
+  @@index([status, createdAt])
+}
+
+model QuestionVariant {
+  id         String   @id @default(cuid())
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  kind       String
+  payload    Json
+
+  @@index([questionId])
+}
+
+model VerifiedAnswer {
+  id         String   @id @default(cuid())
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  value      String
+  aliases    String[] @default([])
+  isCorrect  Boolean  @default(true)
+
+  @@index([questionId])
+}
+
+model PlayerQuestionHistory {
+  id         String   @id @default(cuid())
+  playerId   String
+  player     Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  gameSlug   String
+  contentKey String
+  subjectKey String
+  topic      String
+  correct    Boolean?
+  roomCode   String?
+  seenAt     DateTime @default(now())
+
+  @@index([playerId, seenAt])
+  @@index([playerId, contentKey])
+  @@index([playerId, subjectKey])
+  @@index([contentKey])
+}
+
+// Rare Words: every distinct player counts at most once per (category, answer).
+model RareAnswerStat {
+  category  String
+  answerKey String
+  display   String
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@id([category, answerKey])
+  @@index([category, count])
+}
+
+model RareAnswerVote {
+  category  String
+  answerKey String
+  playerId  String
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([category, answerKey, playerId])
+}
+
+model RareCategoryStat {
+  category      String   @id
+  totalVoters   Int      @default(0)
+  totalAnswers  Int      @default(0)
+  updatedAt     DateTime @updatedAt
+}
+
+// ───────────── Play ─────────────
+
+model Room {
+  id           String            @id @default(cuid())
+  code         String            @unique
+  hostPlayerId String
+  status       RoomStatus        @default(LOBBY)
+  settings     Json
+  createdAt    DateTime          @default(now())
+  closedAt     DateTime?
+  participants RoomParticipant[]
+  matches      Match[]
+
+  @@index([status, createdAt])
+}
+
+model RoomParticipant {
+  roomId    String
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  playerId  String
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  team      String?
+  spectator Boolean  @default(false)
+  joinedAt  DateTime @default(now())
+
+  @@id([roomId, playerId])
+}
+
+model Match {
+  id        String    @id @default(cuid())
+  roomId    String?
+  room      Room?     @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  mode      String
+  gameSlug  String
+  seed      String
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  rounds    Round[]
+  scores    Score[]
+
+  @@index([gameSlug, startedAt])
+  @@index([startedAt])
+}
+
+model Round {
+  id          String       @id @default(cuid())
+  matchId     String
+  match       Match        @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  index       Int
+  gameSlug    String
+  contentKey  String
+  startedAt   DateTime     @default(now())
+  submissions Submission[]
+
+  @@unique([matchId, index])
+}
+
+model Submission {
+  id         String   @id @default(cuid())
+  roundId    String
+  round      Round    @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  playerId   String
+  player     Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  answer     Json
+  correct    Boolean
+  points     Int
+  responseMs Int
+  createdAt  DateTime @default(now())
+
+  // One submission per player per round: duplicate submissions are rejected.
+  @@unique([roundId, playerId])
+}
+
+model Score {
+  id       String @id @default(cuid())
+  matchId  String
+  match    Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  playerId String
+  player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  points   Int
+  rank     Int
+  correct  Int    @default(0)
+  rounds   Int    @default(0)
+
+  @@unique([matchId, playerId])
+  @@index([playerId])
+  @@index([points])
+}
+
+model Rating {
+  playerId  String
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  board     String // "global" or a game slug
+  rating    Int      @default(1000)
+  games     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@id([playerId, board])
+  @@index([board, rating])
+}
+
+model DailyResult {
+  date     String // YYYY-MM-DD (UTC)
+  playerId String
+  points   Int
+  correct  Int
+  createdAt DateTime @default(now())
+
+  @@id([date, playerId])
+  @@index([date, points])
+}
+
+model Achievement {
+  slug        String              @id
+  name        String
+  description String
+  icon        String
+  players     PlayerAchievement[]
+}
+
+model PlayerAchievement {
+  playerId       String
+  player         Player      @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  achievementSlug String
+  achievement    Achievement @relation(fields: [achievementSlug], references: [slug])
+  unlockedAt     DateTime    @default(now())
+
+  @@id([playerId, achievementSlug])
+}
+
+// ───────────── Moderation, content ops, analytics ─────────────
+
+model ContentReport {
+  id          String       @id @default(cuid())
+  questionId  String?
+  question    Question?    @relation(fields: [questionId], references: [id], onDelete: SetNull)
+  contentKey  String
+  playerId    String
+  reason      String       @db.VarChar(500)
+  status      ReportStatus @default(OPEN)
+  createdAt   DateTime     @default(now())
+
+  @@unique([contentKey, playerId])
+  @@index([status, createdAt])
+}
+
+model UserReport {
+  id               String       @id @default(cuid())
+  reporterPlayerId String
+  targetPlayerId   String
+  reason           String       @db.VarChar(500)
+  context          String?
+  status           ReportStatus @default(OPEN)
+  createdAt        DateTime     @default(now())
+
+  @@index([status, createdAt])
+}
+
+model ContentGenerationJob {
+  id         String    @id @default(cuid())
+  kind       String
+  provider   String
+  status     JobStatus @default(QUEUED)
+  params     Json
+  produced   Int       @default(0)
+  accepted   Int       @default(0)
+  rejected   Int       @default(0)
+  log        Json      @default("[]")
+  error      String?
+  createdAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@index([status, createdAt])
+}
+
+model AnalyticsEvent {
+  id       String   @id @default(cuid())
+  type     String
+  playerId String?
+  gameSlug String?
+  meta     Json     @default("{}")
+  at       DateTime @default(now())
+
+  @@index([type, at])
+  @@index([gameSlug, at])
+  @@index([at])
+}

@@ -25,12 +25,12 @@ Test suites: `npm test` (372 unit tests) · `npm run test:e2e` (6 Playwright tes
 | Odd One Out | 5 | unit | Ambiguity check rejects puzzles with two valid odd ones |
 | Guess the Year | 6 | unit | |
 | Connections | 1 (5 group sources) | unit + manual | Every tile is checked against all four groups |
-| Trivia Roulette | 88 (every compatible mode + Community picks) | unit + e2e | |
+| Trivia Roulette | 87 (every compatible mode + Community picks) | unit + e2e | |
 | Memory Challenge | 3 | unit | |
 | Blurred Image | 3 (flags) | unit | Flags only until a licensed photo provider is configured |
 | Two Truths and a Lie | 4 | unit + manual | Lies only use fields that are complete in the data |
 | Name Five | closed sets + categories | unit | |
-| Quickfire | 49 (choice-only mix + Community picks) | unit + e2e | Rounds get shorter as you go |
+| Quickfire | 48 (choice-only mix + Community picks) | unit + e2e | Rounds get shorter as you go |
 
 ### 10 originals
 

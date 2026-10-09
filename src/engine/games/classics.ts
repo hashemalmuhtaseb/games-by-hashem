@@ -486,7 +486,7 @@ const whoManager: ModeDefinition = {
     const m = MANAGERS.find((x) => x.id === c.ref)!;
     const teams = [...new Set(m.teams)];
     const clues = [`I'm a ${m.nationality === "Scotland" ? "Scottish" : m.nationality} football manager.`, `I've managed ${teams.length} different team${teams.length > 1 ? "s" : ""}.`, m.fact, `Teams I've managed include ${teams[teams.length - 1]}.`, `My path: ${m.teams.join(" → ")}.`];
-    return cluesRound({ c, modeLabel: "Who am I? · Manager", prompt: "Which manager am I?", clues, accept: [m.name, ...(m.aliases ?? [])], answerLabel: m.name, timeLimitSec: ctx.timeLimitSec ?? 40, explanation: `${m.name}: ${m.teams.join(" → ")}.`, source: FB_SRC });
+    return cluesRound({ c, modeLabel: "Who am I? · Manager", prompt: "Which manager am I?", suggest: "managers", clues, accept: [m.name, ...(m.aliases ?? [])], answerLabel: m.name, timeLimitSec: ctx.timeLimitSec ?? 40, explanation: `${m.name}: ${m.teams.join(" → ")}.`, source: FB_SRC });
   },
 };
 

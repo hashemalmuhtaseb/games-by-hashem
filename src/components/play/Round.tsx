@@ -1,7 +1,7 @@
 "use client";
 import { AnimatePresence, motion, Reorder } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { Action, MediaRef, OptionPublic, PointsBreakdown, PublicRound, RevealPayload } from "@/engine/types";
+import type { Action, MediaRef, OptionPublic, PointsBreakdown, PublicRound, RevealPayload, SuggestSet } from "@/engine/types";
 import { play } from "@/client/sound";
 import { MediaView } from "./Media";
 
@@ -121,35 +121,143 @@ function OptionGrid({ options, onPick, picked, correctId, locked, wrongIds }: { 
   );
 }
 
-function TextAnswer({ placeholder, onSubmit, disabled, shake, autoFocus = true, suggestions }: { placeholder?: string; onSubmit: (v: string) => void; disabled: boolean; shake?: number; autoFocus?: boolean; suggestions?: string[] }) {
+const suggestCache = new Map<string, Promise<string[]>>();
+function useSuggestNames(set?: SuggestSet): string[] | undefined {
+  const [names, setNames] = useState<string[]>();
+  useEffect(() => {
+    if (!set) return;
+    if (!suggestCache.has(set))
+      suggestCache.set(
+        set,
+        fetch(`/api/suggest/${set}`)
+          .then((r) => r.json() as Promise<{ names?: string[] }>)
+          .then((d) => d.names ?? [])
+          .catch(() => {
+            suggestCache.delete(set);
+            return [];
+          }),
+      );
+    let live = true;
+    void suggestCache.get(set)!.then((n) => live && setNames(n));
+    return () => {
+      live = false;
+    };
+  }, [set]);
+  return names;
+}
+
+const fold = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+/** Names whose full text or any word starts with what was typed; full-name matches first. */
+function matchNames(names: string[], q: string, max = 8): string[] {
+  const t = fold(q.trim());
+  if (!t) return [];
+  const starts: string[] = [];
+  const words: string[] = [];
+  for (const n of names) {
+    const f = fold(n);
+    if (f === t) continue;
+    if (f.startsWith(t)) starts.push(n);
+    else if (f.split(/[\s.'-]+/).some((w) => w.startsWith(t))) words.push(n);
+    if (starts.length >= max) break;
+  }
+  return [...starts, ...words].slice(0, max);
+}
+
+function TextAnswer({ placeholder, onSubmit, disabled, shake, autoFocus = true, suggestions, suggestSet }: { placeholder?: string; onSubmit: (v: string) => void; disabled: boolean; shake?: number; autoFocus?: boolean; suggestions?: string[]; suggestSet?: SuggestSet }) {
   const [v, setV] = useState("");
+  const [hi, setHi] = useState(-1);
+  const [open, setOpen] = useState(true);
   const ref = useRef<HTMLInputElement>(null);
-  const listId = useMemo(() => (suggestions?.length ? `sugg-${Math.random().toString(36).slice(2)}` : undefined), [suggestions]);
+  const fetched = useSuggestNames(suggestions ? undefined : suggestSet);
+  const pool = suggestions ?? fetched;
+  const matches = useMemo(() => (pool && open ? matchNames(pool, v) : []), [pool, v, open]);
+  // Ready to type: focus on mount, after every wrong guess (the form remounts) and when re-enabled.
   useEffect(() => {
     if (autoFocus && !disabled) ref.current?.focus();
-  }, [autoFocus, disabled]);
+  }, [autoFocus, disabled, shake]);
+  // Typing anywhere on the page goes into the answer box, so you never have to click it.
+  useEffect(() => {
+    if (disabled) return;
+    const h = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1) return;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      ref.current?.focus();
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [disabled]);
+  const submit = (value: string) => {
+    if (!value.trim() || disabled) return;
+    onSubmit(value.trim());
+    setV("");
+    setHi(-1);
+    requestAnimationFrame(() => ref.current?.focus());
+  };
   return (
     <form
-      className={`flex w-full max-w-xl gap-2 ${shake ? "animate-shake" : ""}`}
+      className={`relative flex w-full max-w-xl gap-2 ${shake ? "animate-shake" : ""}`}
       key={shake}
       onSubmit={(e) => {
         e.preventDefault();
-        if (!v.trim() || disabled) return;
-        onSubmit(v.trim());
-        setV("");
+        submit(hi >= 0 && matches[hi] ? matches[hi] : v);
       }}
     >
-      <input ref={ref} className="input text-lg" value={v} onChange={(e) => setV(e.target.value)} placeholder={placeholder ?? "Type your answer…"} disabled={disabled} maxLength={80} autoComplete="off" autoCapitalize="off" spellCheck={false} list={listId} />
-      {listId && (
-        <datalist id={listId}>
-          {suggestions!.map((s) => (
-            <option key={s} value={s} />
-          ))}
-        </datalist>
-      )}
+      <input
+        ref={ref}
+        className="input text-lg"
+        value={v}
+        onChange={(e) => {
+          setV(e.target.value);
+          setHi(-1);
+          setOpen(true);
+        }}
+        onKeyDown={(e) => {
+          if (!matches.length) return;
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setHi((i) => (i + 1) % matches.length);
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setHi((i) => (i <= 0 ? matches.length - 1 : i - 1));
+          } else if (e.key === "Tab" && !e.shiftKey) {
+            e.preventDefault();
+            setV(matches[hi >= 0 ? hi : 0]);
+            setHi(-1);
+          } else if (e.key === "Escape") setOpen(false);
+        }}
+        placeholder={placeholder ?? "Type your answer…"}
+        disabled={disabled}
+        maxLength={80}
+        autoComplete="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        role="combobox"
+        aria-expanded={matches.length > 0}
+        aria-autocomplete="list"
+      />
       <button className="btn-primary px-6" disabled={disabled || !v.trim()}>
         Go
       </button>
+      {matches.length > 0 && !disabled && (
+        <ul role="listbox" className="absolute top-full right-0 left-0 z-30 mt-1.5 overflow-hidden rounded-xl border border-white/10 bg-ink-900/95 shadow-2xl backdrop-blur">
+          {matches.map((m, i) => (
+            <li key={m} role="option" aria-selected={i === hi}>
+              <button
+                type="button"
+                tabIndex={-1}
+                onMouseDown={(e) => e.preventDefault()}
+                onMouseEnter={() => setHi(i)}
+                onClick={() => submit(m)}
+                className={`block w-full px-4 py-2.5 text-left text-base transition ${i === hi ? "bg-brand-500/25 text-white" : "text-ink-100 hover:bg-white/5"}`}
+              >
+                {m}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </form>
   );
 }
@@ -187,6 +295,7 @@ function TextKind({ round, act, locked, resume }: Ctl) {
     <div className="flex w-full flex-col items-center gap-3">
       <TextAnswer
         placeholder={round.input?.placeholder}
+        suggestSet={round.input?.suggest}
         disabled={done}
         shake={shake}
         onSubmit={async (v) => {
@@ -339,7 +448,7 @@ function CluesKind({ round, act, locked, resume }: Ctl) {
           }}
         />
       ) : (
-        <TextAnswer placeholder={round.input?.placeholder} disabled={done} shake={shake} onSubmit={async (v) => handle(await act({ type: "answer", value: v }))} />
+        <TextAnswer placeholder={round.input?.placeholder} suggestSet={round.input?.suggest} disabled={done} shake={shake} onSubmit={async (v) => handle(await act({ type: "answer", value: v }))} />
       )}
       {toast.node}
       {!done && (

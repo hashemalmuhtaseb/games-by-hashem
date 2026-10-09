@@ -50,7 +50,7 @@ const career: ModeDefinition = {
     const media = [{ type: "timeline" as const, title: "Senior clubs", items: p.clubs }];
     const explanation = `${p.name} (${p.nationality}, ${p.position.toLowerCase()}).`;
     if (c.difficulty >= 3 && !ctx.preferChoice)
-      return textRound({ c, modeLabel: "Career path", prompt: "Whose career is this?", media, timeLimitSec: ctx.timeLimitSec ?? 25, accept: names(p), answerLabel: p.name, placeholder: "Player name…", explanation, source: SRC });
+      return textRound({ c, modeLabel: "Career path", prompt: "Whose career is this?", media, timeLimitSec: ctx.timeLimitSec ?? 25, accept: names(p), answerLabel: p.name, placeholder: "Player name…", suggest: "footballers", explanation, source: SRC });
     return choiceRound({ c, rng: ctx.rng, modeLabel: "Career path", prompt: "Whose career is this?", media, timeLimitSec: ctx.timeLimitSec ?? 15, correct: { label: p.name }, distractors: similarPlayers(ctx, p, 3).map((x) => ({ label: x.name })), explanation, source: SRC });
   },
 };
@@ -128,7 +128,7 @@ const legend: ModeDefinition = {
   candidates: () => FOOTBALLERS.map((p) => cand("legend", p, 0)),
   build(c, ctx) {
     const p = FOOTBALLER_BY_ID.get(c.ref)!;
-    return cluesRound({ c, modeLabel: "Who am I?", prompt: "Who am I?", clues: playerClues(p), accept: names(p), answerLabel: p.name, timeLimitSec: ctx.timeLimitSec ?? 40, explanation: `${p.name} — ${p.clubs.join(" → ")}`, source: SRC });
+    return cluesRound({ c, modeLabel: "Who am I?", prompt: "Who am I?", suggest: "footballers", clues: playerClues(p), accept: names(p), answerLabel: p.name, timeLimitSec: ctx.timeLimitSec ?? 40, explanation: `${p.name} — ${p.clubs.join(" → ")}`, source: SRC });
   },
 };
 
@@ -141,7 +141,7 @@ const club: ModeDefinition = {
   build(c, ctx) {
     const cl = CLUBS.find((x) => x.id === c.ref)!;
     return cluesRound({
-      c, modeLabel: "Guess the club", prompt: "Which club is this?",
+      c, modeLabel: "Guess the club", prompt: "Which club is this?", suggest: "clubs",
       clues: [`Founded in ${cl.founded}.`, `Club colours: ${cl.colors}.`, `Based in ${cl.country}.`, `Nickname: ${cl.nickname}.`, `Home city: ${cl.city}.`, `Home ground: ${cl.stadium}.`],
       accept: [cl.name, ...(cl.aliases ?? [])], answerLabel: cl.name, timeLimitSec: ctx.timeLimitSec ?? 40, explanation: `${cl.name} — ${cl.stadium}, ${cl.city}.`, source: SRC,
     });
@@ -172,7 +172,7 @@ const manager: ModeDefinition = {
     const m = MANAGERS.find((x) => x.id === c.ref)!;
     const teams = [...new Set(m.teams)];
     return cluesRound({
-      c, modeLabel: "Guess the manager", prompt: "Which manager is this?",
+      c, modeLabel: "Guess the manager", prompt: "Which manager is this?", suggest: "managers",
       clues: [`I'm from ${m.nationality}.`, `I've managed ${teams.length} different team${teams.length > 1 ? "s" : ""}.`, m.fact, `Teams managed: ${teams.join(", ")}.`],
       accept: [m.name, ...(m.aliases ?? [])], answerLabel: m.name, timeLimitSec: ctx.timeLimitSec ?? 35, explanation: `${m.name}: ${m.teams.join(" → ")}`, source: SRC,
     });

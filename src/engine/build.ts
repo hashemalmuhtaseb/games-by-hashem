@@ -1,5 +1,5 @@
 import { shortId, shuffle, sample, type Rng } from "./rng";
-import type { Candidate, MediaRef, OptionPublic, Round, RoundKind, SecretRound } from "./types";
+import type { Candidate, MediaRef, OptionPublic, Round, RoundKind, SecretRound, SuggestSet } from "./types";
 
 export interface RoundBase {
   c: Candidate;
@@ -57,8 +57,8 @@ export function choiceRound(b: RoundBase & { rng: Rng; correct: OptionInput; dis
   return base(b, "choice", { answerLabel: b.answerLabel ?? b.correct.label, correctOptionId: correctId }, { options });
 }
 
-export function textRound(b: RoundBase & { accept: string[]; answerLabel: string; placeholder?: string }): Round {
-  return base(b, "text", { answerLabel: b.answerLabel, accept: b.accept }, { input: { placeholder: b.placeholder ?? "Type your answer…" } });
+export function textRound(b: RoundBase & { accept: string[]; answerLabel: string; placeholder?: string; suggest?: SuggestSet }): Round {
+  return base(b, "text", { answerLabel: b.answerLabel, accept: b.accept }, { input: { placeholder: b.placeholder ?? "Type your answer…", suggest: b.suggest } });
 }
 
 export function numberRound(
@@ -73,7 +73,7 @@ export function numberRound(
 }
 
 export function cluesRound(
-  b: RoundBase & { clues: string[]; accept?: string[]; answerLabel: string; rng?: Rng; correct?: OptionInput; distractors?: OptionInput[] },
+  b: RoundBase & { clues: string[]; accept?: string[]; answerLabel: string; rng?: Rng; correct?: OptionInput; distractors?: OptionInput[]; suggest?: SuggestSet },
 ): Round {
   let options: OptionPublic[] | undefined;
   let correctOptionId: string | undefined;
@@ -86,7 +86,7 @@ export function cluesRound(
     b,
     "clues",
     { answerLabel: b.answerLabel, accept: b.accept, clues: b.clues, correctOptionId },
-    { totalClues: b.clues.length, extra: { clues: [b.clues[0]] }, options, input: options ? undefined : { placeholder: "Your guess…" } },
+    { totalClues: b.clues.length, extra: { clues: [b.clues[0]] }, options, input: options ? undefined : { placeholder: "Your guess…", suggest: b.suggest } },
   );
 }
 

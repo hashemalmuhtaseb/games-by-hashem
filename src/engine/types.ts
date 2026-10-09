@@ -29,6 +29,9 @@ export type RoundKind =
   | "reveal" // image becomes clearer over time
   | "letters"; // make the longest dictionary word from a set of letters
 
+/** Public name lists used for typing autocomplete. */
+export type SuggestSet = "footballers" | "managers" | "clubs";
+
 export type MediaRef =
   | { type: "image"; url: string; alt: string; aspect?: number; frame?: "flag" | "square" | "wide" }
   | { type: "emoji"; value: string }
@@ -58,6 +61,8 @@ export interface PublicRound {
   totalClues?: number;
   input?: {
     placeholder?: string;
+    /** Name list the client offers as autocomplete (the whole pool, so it never hints at the answer). */
+    suggest?: SuggestSet;
     numeric?: { min: number; max: number; step: number; unit?: string; log?: boolean };
     target?: number; // number of answers wanted (multi)
     letter?: string;

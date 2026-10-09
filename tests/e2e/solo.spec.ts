@@ -36,3 +36,20 @@ test("Word Forge lets you fix a typo without losing a try", async ({ page }) => 
   await expect(page.getByText("uses letters you don't have")).toBeVisible();
   await expect(input).toBeEnabled();
 });
+
+test("football clue answers are focused and suggest player names as you type", async ({ page }) => {
+  await page.goto("/play/football?modes=legend");
+  const input = page.locator("input.input").first();
+  await expect(input).toBeVisible();
+  await expect(input).toBeFocused();
+  await page.keyboard.type("me");
+  const options = page.getByRole("option");
+  await expect(options.first()).toBeVisible();
+  await expect(page.getByRole("option", { name: "Lionel Messi" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.locator("body").click({ position: { x: 5, y: 5 } });
+  await expect(input).not.toBeFocused();
+  await page.keyboard.type("x");
+  await expect(input).toBeFocused();
+  await expect(input).toHaveValue("mex");
+});

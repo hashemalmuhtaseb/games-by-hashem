@@ -2,6 +2,7 @@ import { CATEGORY_BY_ID, resolveAnswer, firstLetter } from "@/content/categories
 import { COUNTRIES, distanceKm, direction, type Country } from "@/content/datasets/countries";
 import { compact, findMatch, matchesAny, normalize } from "./normalize";
 import { clueQuality, closeness, computePoints } from "./scoring";
+import { distanceOf, parseGuess } from "./closest";
 import { rarityFor, answerKey, commonPointsFromProbability } from "./rarity";
 import { isDictionaryWord, botWord } from "./dictionary";
 import type { ActContext, ActResult, Action, PlayerRoundState, Round, RoundHandler, RoundKind } from "./types";
@@ -24,7 +25,7 @@ export function finish(
   round: Round,
   state: PlayerRoundState,
   ctx: ActContext,
-  r: { correct: boolean; quality?: number; speed?: boolean; rarityPoints?: number; fixedPoints?: number; answerLabel?: string; from?: number },
+  r: { correct: boolean; quality?: number; speed?: boolean; streak?: boolean; rarityPoints?: number; fixedPoints?: number; answerLabel?: string; from?: number },
 ): void {
   state.done = true;
   state.correct = r.correct;
@@ -41,7 +42,7 @@ export function finish(
     elapsedMs: elapsedMs(state, ctx, r.from),
     timeLimitMs: round.pub.timeLimitSec * 1000,
     difficulty: round.difficulty,
-    streak: ctx.streak,
+    streak: r.streak === false ? 0 : ctx.streak,
     speed: r.speed,
     rarityPoints: r.rarityPoints,
   });
@@ -91,15 +92,26 @@ const text: RoundHandler = {
 };
 
 // ───────────────────────── number ─────────────────────────
+// Closeness only: no speed bonus and no streak multiplier, so within a round a farther guess can
+// never out-score a closer one. Multiplayer rooms add a bonus for the closest player(s).
 const number: RoundHandler = {
   act(round, state, action, ctx) {
     if (action.type !== "answer") return { error: "unsupported" };
-    const n = typeof action.value === "number" ? action.value : Number(action.value);
+    const n = parseGuess(action.value);
     const spec = round.secret.numeric!;
     const num = round.pub.input?.numeric;
-    if (!Number.isFinite(n) || (num && (n < num.min || n > num.max))) return { error: "out of range" };
+    if (n === null) return { error: "Enter a number." };
+    if (num && (n < num.min || n > num.max)) return { error: `Enter a number between ${num.min.toLocaleString("en")} and ${num.max.toLocaleString("en")}.` };
     const q = closeness(n, spec.value, spec.scale, spec.tolerance);
-    finish(round, state, ctx, { correct: q >= 0.6, quality: q, answerLabel: `${n}${spec.unit ? " " + spec.unit : ""}` });
+    state.data.guess = n;
+    state.data.distance = distanceOf(n, spec.value);
+    finish(round, state, ctx, {
+      correct: q >= 0.6,
+      quality: q,
+      speed: false,
+      streak: false,
+      answerLabel: `${n.toLocaleString("en", { maximumFractionDigits: 6 })}${spec.unit ? " " + spec.unit : ""}`,
+    });
     return { feedback: { quality: q } };
   },
 };

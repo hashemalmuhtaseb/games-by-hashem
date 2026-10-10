@@ -1,7 +1,7 @@
-import type { RoomSnapshot, RoomSettings, PublicPlayer } from "@/server/rooms";
+import type { RoomSnapshot, RoomSettings, PublicPlayer, RoundResult } from "@/server/rooms";
 import type { PublicRound, RevealPayload } from "@/engine/types";
 
-export type { RoomSnapshot, RoomSettings, PublicPlayer };
+export type { RoomSnapshot, RoomSettings, PublicPlayer, RoundResult };
 
 export interface RoundMsg {
   round: PublicRound;
@@ -20,17 +20,11 @@ export interface ChatMsg {
   playerId: string;
   name: string;
   avatar: string;
+  photo?: string | null;
   color: string;
   text: string;
   at: number;
   system?: boolean;
-}
-
-export interface RoundResult {
-  playerId: string;
-  correct: boolean;
-  points: number;
-  answer?: string;
 }
 
 export type RoomReveal = RevealPayload & { extra?: RevealPayload["extra"] & { results?: RoundResult[] } };

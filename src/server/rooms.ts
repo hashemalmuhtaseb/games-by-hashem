@@ -11,6 +11,7 @@ import { createRng, randomSeed, shuffle, type Rng } from "@/engine/rng";
 import { emptySessionMemory, type HistoryView, type SessionMemory } from "@/engine/selection";
 import { applyAction, applyTimeout, newPlayerState } from "@/engine/handlers";
 import { mergeScoring } from "@/engine/scoring";
+import { applyClosest } from "@/engine/closest";
 import type { Action, PlayerRoundState, PublicRound, RevealPayload, Round } from "@/engine/types";
 import { loadHistory, recordSeen } from "./history";
 import { pickRound, type PickState } from "./picker";
@@ -57,6 +58,7 @@ interface RoomPlayer {
   id: string;
   name: string;
   avatar: string;
+  photo: string | null;
   color: string;
   registered: boolean;
   team: number | null;
@@ -97,6 +99,7 @@ interface ChatMsg {
   playerId: string;
   name: string;
   avatar: string;
+  photo?: string | null;
   color: string;
   text: string;
   at: number;
@@ -137,8 +140,21 @@ export interface Room {
   busy?: boolean;
 }
 
+export interface RoundResult {
+  playerId: string;
+  correct: boolean;
+  points: number;
+  answer?: string;
+  breakdown?: PlayerRoundState["breakdown"];
+  /** Numeric rounds only. */
+  guess?: number | null;
+  distance?: number | null;
+  closest?: boolean;
+  closestRank?: number | null;
+}
+
 interface FinalResults {
-  standings: { playerId: string; name: string; avatar: string; color: string; team: number | null; score: number; correct: number; rank: number; eliminated: boolean; xp?: number; levelUp?: boolean; achievements?: { name: string; icon: string }[]; rating?: { rating: number; delta: number } }[];
+  standings: { playerId: string; name: string; avatar: string; photo: string | null; color: string; team: number | null; score: number; correct: number; rank: number; eliminated: boolean; xp?: number; levelUp?: boolean; achievements?: { name: string; icon: string }[]; rating?: { rating: number; delta: number } }[];
   teams?: { team: number; name: string; score: number; rank: number }[];
   winnerName: string;
 }
@@ -211,6 +227,7 @@ function publicPlayer(r: Room, p: RoomPlayer) {
     id: p.id,
     name: p.name,
     avatar: p.avatar,
+    photo: p.photo,
     color: p.color,
     registered: p.registered,
     team: p.team,
@@ -333,7 +350,7 @@ function autoTeam(r: Room): number {
 
 function addPlayer(r: Room, pl: Player, registered: boolean, spectator: boolean): RoomPlayer {
   const p: RoomPlayer = {
-    id: pl.id, name: pl.displayName, avatar: pl.avatar, color: pl.color, registered,
+    id: pl.id, name: pl.displayName, avatar: pl.avatar, photo: pl.photoUrl, color: pl.color, registered,
     team: null, spectator, connected: true, sockets: new Set(), score: 0, streak: 0, bestStreak: 0, correct: 0, rounds: 0,
     lives: r.settings.lives, eliminated: false, qualities: [], maxRarity: 0, lastPoints: null, mutedUntil: 0, joinedAt: Date.now(),
   };
@@ -355,6 +372,19 @@ export async function createRoom(host: Player, registered: boolean, settings?: P
   addPlayer(r, host, registered, false);
   await trackEvent("room_created", host.id, s.gameSlug, { mode: s.mode });
   return r;
+}
+
+/** Pushes a profile change (name, emoji, picture) to every live room the player is in, immediately. */
+export function refreshPlayerEverywhere(playerId: string, patch: { photo?: string | null; avatar?: string; name?: string; color?: string }) {
+  for (const r of rooms.values()) {
+    const p = r.players.get(playerId);
+    if (!p) continue;
+    if (patch.photo !== undefined) p.photo = patch.photo;
+    if (patch.avatar !== undefined) p.avatar = patch.avatar;
+    if (patch.name !== undefined) p.name = patch.name;
+    if (patch.color !== undefined) p.color = patch.color;
+    broadcastState(r);
+  }
 }
 
 export function getRoom(code: string): Room | undefined {
@@ -381,6 +411,7 @@ export function joinRoom(r: Room, pl: Player, registered: boolean, wantSpectator
   // Pick up profile changes (name/avatar) on every join.
   p.name = pl.displayName;
   p.avatar = pl.avatar;
+  p.photo = pl.photoUrl;
   p.color = pl.color;
   p.connected = true;
   p.disconnectedAt = undefined;
@@ -562,7 +593,7 @@ export function chat(r: Room, playerId: string, text: string) {
     const acc = [r.live.round.secret.answerLabel, ...(r.live.round.secret.accept ?? [])].map((x) => x.toLowerCase());
     if (acc.some((a) => a.length > 2 && clean.toLowerCase().includes(a))) throw new Error("No spoilers while the round is live! 🤐");
   }
-  const m: ChatMsg = { id: randomBytes(6).toString("base64url"), playerId, name: p.name, avatar: p.avatar, color: p.color, text: clean, at: Date.now() };
+  const m: ChatMsg = { id: randomBytes(6).toString("base64url"), playerId, name: p.name, avatar: p.avatar, photo: p.photo, color: p.color, text: clean, at: Date.now() };
   r.chat.push(m);
   if (r.chat.length > 60) r.chat.shift();
   io?.to(`room:${r.code}`).emit("room:chat", m);
@@ -764,11 +795,16 @@ async function endQuestion(r: Room) {
   const cfg = await gameConfig(l.round.gameSlug);
   const scoring = mergeScoring(getGame(l.round.gameSlug)?.scoring, cfg.scoring);
   const now = Date.now();
-  const results: { playerId: string; correct: boolean; points: number; answer?: string; breakdown?: PlayerRoundState["breakdown"] }[] = [];
+  const results: RoundResult[] = [];
+  for (const [id, st] of l.states) {
+    const p = r.players.get(id);
+    if (p && !st.done) applyTimeout(l.round, st, ctxFor(r, p, scoring, now));
+  }
+  // Numeric rounds: the closest guess(es) win the round, computed once here on the server.
+  const closest = l.round.handler === "number" && l.round.secret.numeric ? applyClosest(l.round.secret.numeric.value, l.states) : null;
   for (const [id, st] of l.states) {
     const p = r.players.get(id);
     if (!p) continue;
-    if (!st.done) applyTimeout(l.round, st, ctxFor(r, p, scoring, now));
     if (l.modifier?.id === "double") st.points *= 2;
     if (l.modifier?.id === "jackpot") st.points = st.correct ? st.points * 3 : -50;
     if (st.breakdown) st.breakdown.total = st.points;
@@ -792,7 +828,8 @@ async function endQuestion(r: Room) {
         }
       }
     }
-    results.push({ playerId: id, correct: st.correct, points: st.points, answer: st.answerLabel, breakdown: st.breakdown });
+    const c = closest?.get(id);
+    results.push({ playerId: id, correct: st.correct, points: st.points, answer: st.answerLabel, breakdown: st.breakdown, ...(c ? { guess: c.guess, distance: c.distance, closest: c.closest, closestRank: c.rank } : {}) });
     if (l.dbRoundId)
       db.submission.create({ data: { roundId: l.dbRoundId, playerId: id, answer: { label: st.answerLabel ?? null } as object, correct: st.correct, points: st.points, responseMs: Math.max(0, now - st.startedAt) } }).catch(() => undefined);
   }
@@ -873,7 +910,7 @@ async function finishGame(r: Room) {
   ordered.forEach((p, i) => {
     const prev = ordered[i - 1];
     if (!prev || prev.score !== p.score || prev.eliminated !== p.eliminated) rank = i + 1;
-    standings.push({ playerId: p.id, name: p.name, avatar: p.avatar, color: p.color, team: p.team, score: p.score, correct: p.correct, rank, eliminated: p.eliminated });
+    standings.push({ playerId: p.id, name: p.name, avatar: p.avatar, photo: p.photo, color: p.color, team: p.team, score: p.score, correct: p.correct, rank, eliminated: p.eliminated });
   });
   let teams: FinalResults["teams"];
   if (r.settings.mode === "teams") {

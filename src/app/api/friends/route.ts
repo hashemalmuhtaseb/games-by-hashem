@@ -1,7 +1,7 @@
 import { route, z, json } from "@/lib/api";
 import { db } from "@/lib/db";
 
-const brief = (p: { id: string; displayName: string; avatar: string; color: string; lastSeenAt: Date }) => ({ id: p.id, displayName: p.displayName, avatar: p.avatar, color: p.color, lastSeenAt: p.lastSeenAt.toISOString() });
+const brief = (p: { id: string; displayName: string; avatar: string; photoUrl: string | null; color: string; lastSeenAt: Date }) => ({ id: p.id, displayName: p.displayName, avatar: p.avatar, photo: p.photoUrl, color: p.color, lastSeenAt: p.lastSeenAt.toISOString() });
 
 export const GET = route({ name: "friends" }, async ({ id }) => {
   const rows = await db.friendship.findMany({ where: { OR: [{ requesterId: id.player.id }, { addresseeId: id.player.id }] }, include: { requester: true, addressee: true }, orderBy: { createdAt: "desc" } });

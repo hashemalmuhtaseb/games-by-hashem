@@ -184,6 +184,8 @@ export interface PointsBreakdown {
   difficulty: number;
   streak: number;
   rarity?: number;
+  /** Multiplayer numeric rounds: bonus for the closest guess. */
+  closest?: number;
   total: number;
 }
 

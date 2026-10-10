@@ -1,35 +1,83 @@
-"use client";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import type { CSSProperties } from "react";
 import type { GameInfo } from "@/engine/registry";
+import { GameGlyph, gameFamily, toneOf } from "./ui/GameGlyph";
+import { Icon } from "./ui/Icon";
 
-export function GameCard({ g, i = 0 }: { g: GameInfo; i?: number }) {
+const FAMILY_LABEL: Record<string, string> = { party: "Party", trivia: "Trivia", visual: "Visual", words: "Words", sports: "Sports", cards: "Cards", medicine: "Medicine" };
+
+export function familyLabel(g: Pick<GameInfo, "slug" | "group">) {
+  return FAMILY_LABEL[gameFamily(g.slug, g.group)] ?? "Trivia";
+}
+
+function meta(g: GameInfo) {
   const modes = g.modes.filter((m) => m.available).length;
+  return `${modes} ${modes === 1 ? "mode" : "modes"} · ${g.questionCount.toLocaleString()} questions`;
+}
+
+/** Editorial spotlight tile for the home page. */
+export function FeaturedGame({ g, large, className, delay = 0 }: { g: GameInfo; large?: boolean; className?: string; delay?: number }) {
+  const tone = toneOf(g.slug, g.group);
+  const style = { "--tone": tone, animationDelay: `${delay}ms` } as CSSProperties;
   return (
-    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i, 12) * 0.03 }}>
-      <Link
-        href={`/games/${g.slug}`}
-        className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-white/[0.07] bg-ink-850/80 p-5 transition hover:-translate-y-1 hover:border-white/20 hover:shadow-2xl"
-        style={{ boxShadow: `0 0 0 0 ${g.accent[0]}` }}
-      >
-        <div className="pointer-events-none absolute -top-16 -right-16 h-40 w-40 rounded-full opacity-30 blur-3xl transition group-hover:opacity-60" style={{ background: `linear-gradient(135deg, ${g.accent[0]}, ${g.accent[1]})` }} />
-        <div className="flex items-start justify-between">
-          <span className="grid h-14 w-14 place-items-center rounded-2xl text-3xl shadow-lg" style={{ background: `linear-gradient(135deg, ${g.accent[0]}33, ${g.accent[1]}33)`, boxShadow: `inset 0 0 0 1px ${g.accent[0]}55` }}>
-            {g.icon}
+    <Link
+      href={`/games/${g.slug}`}
+      style={style}
+      className={`group card animate-rise relative flex flex-col overflow-hidden p-6 transition-colors duration-200 hover:bg-surface-2 ${large ? "min-h-[300px] sm:p-8 lg:min-h-[380px]" : "min-h-[180px]"} ${className ?? ""}`}
+    >
+      <span className="pointer-events-none absolute inset-0 bg-[color-mix(in_oklab,var(--tone)_6%,transparent)]" />
+      <div className="relative flex items-start justify-between">
+        <GameGlyph slug={g.slug} group={g.group} name={g.name} size={large ? 56 : 44} />
+        <span className="overline" style={{ color: tone }}>
+          {familyLabel(g)}
+          {g.original ? " · Original" : ""}
+        </span>
+      </div>
+      <div className="relative mt-auto pt-8">
+        <h3 className={large ? "serif text-[34px] leading-[1.05] text-fg sm:text-[40px]" : "text-lg font-semibold tracking-tight text-fg"}>{g.name}</h3>
+        <p className={`mt-2 max-w-md leading-relaxed text-fg-2 ${large ? "text-base" : "line-clamp-2 text-sm"}`}>{g.short}</p>
+        {large && (
+          <ul className="mt-6 flex flex-wrap gap-1.5">
+            {g.modes
+              .filter((m) => m.available)
+              .slice(0, 6)
+              .map((m) => (
+                <li key={m.id} className="chip bg-[color-mix(in_oklab,var(--tone)_9%,var(--color-surface-2))] text-fg-2">
+                  {m.label}
+                </li>
+              ))}
+          </ul>
+        )}
+        <div className="mt-5 flex items-center justify-between text-sm">
+          <span className="num text-fg-3">{meta(g)}</span>
+          <span className="flex items-center gap-1.5 font-medium text-fg-2 transition-colors group-hover:text-fg">
+            Play
+            <Icon name="arrow-right" size={16} className="transition-transform duration-200 group-hover:translate-x-0.5" />
           </span>
-          <div className="flex gap-1">
-            {g.original && <span className="chip border-brand-500/40 text-brand-400">Original</span>}
-            {g.multiplayer && !g.soloOnly && <span className="chip">👥 Party</span>}
-          </div>
         </div>
-        <h3 className="display mt-4 text-lg font-bold text-white">{g.name}</h3>
-        <p className="mt-1 flex-1 text-sm leading-relaxed text-ink-300">{g.short}</p>
-        <div className="mt-4 flex items-center gap-3 text-xs text-ink-400">
-          <span>{modes} {modes === 1 ? "mode" : "modes"}</span>
-          <span>·</span>
-          <span>{g.questionCount.toLocaleString()} questions</span>
-        </div>
-      </Link>
-    </motion.div>
+      </div>
+    </Link>
+  );
+}
+
+/** Library entry: a calm row that reads like an index, not a wall of cards. */
+export function GameCard({ g, i = 0 }: { g: GameInfo; i?: number }) {
+  return (
+    <Link
+      href={`/games/${g.slug}`}
+      style={{ animationDelay: `${Math.min(i, 10) * 18}ms` }}
+      className="group animate-rise -mx-3 flex items-center gap-4 rounded-[var(--radius-md)] px-3 py-3 transition-colors duration-150 hover:bg-surface-1"
+    >
+      <GameGlyph slug={g.slug} group={g.group} name={g.name} size={44} />
+      <span className="min-w-0 flex-1">
+        <span className="flex items-baseline gap-2">
+          <span className="truncate font-semibold tracking-tight text-fg">{g.name}</span>
+          {g.original && <span className="text-xs text-fg-3">Original</span>}
+          {g.soloOnly && <span className="text-xs text-fg-3">Solo</span>}
+        </span>
+        <span className="mt-0.5 block truncate text-sm text-fg-3">{g.short}</span>
+      </span>
+      <Icon name="chevron-right" size={16} className="text-fg-4 transition-[color,transform] duration-150 group-hover:translate-x-0.5 group-hover:text-fg-2" />
+    </Link>
   );
 }

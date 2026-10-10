@@ -14,6 +14,7 @@ import { Summary } from "./Summary";
 import { CountUp } from "@/components/ui/CountUp";
 import { GameGlyph } from "@/components/ui/GameGlyph";
 import { Icon } from "@/components/ui/Icon";
+import { plainLabel } from "@/components/ui/text";
 
 type Variant = "classic" | "survival" | "ranked" | "chaos" | "daily";
 interface GameLite {
@@ -236,7 +237,7 @@ export function SoloPlay({ game, variant, modes }: { game: GameLite; variant: Va
       {view && !summary && (
         <div className="flex flex-1 flex-col gap-6 pt-6">
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[13px] text-fg-3">
-            <span className="font-medium text-fg-2">{view.round.modeLabel}</span>
+            <span className="font-medium text-fg-2">{plainLabel(view.round.modeLabel)}</span>
             <span className="flex gap-[3px]" aria-label={`Difficulty ${view.round.difficulty} of 5`}>
               {Array.from({ length: 5 }, (_, i) => (
                 <span key={i} className={`h-2.5 w-[3px] rounded-full ${i < view.round.difficulty ? "bg-fg-2" : "bg-surface-4"}`} />

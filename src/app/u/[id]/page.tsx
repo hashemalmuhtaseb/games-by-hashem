@@ -10,7 +10,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
   const p = await publicProfile(id);
   if (!p) notFound();
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10">
+    <div className="mx-auto max-w-5xl px-5 pt-10 pb-24 sm:px-8 sm:pt-14">
       <ProfileView p={p} />
     </div>
   );

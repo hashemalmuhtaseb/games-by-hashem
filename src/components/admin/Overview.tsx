@@ -63,7 +63,7 @@ export function Overview({ onOpen }: { onOpen: (tab: string) => void }) {
               {data.daily.map((d) => (
                 <div key={d.day} className="group flex flex-1 flex-col items-center gap-1" title={`${d.day}: ${d.plays}`}>
                   <span className="text-fg-3 text-[10px] opacity-0 group-hover:opacity-100">{d.plays}</span>
-                  <div className="from-brand-500 to-hot-500 w-full rounded-t-md bg-gradient-to-t" style={{ height: `${(d.plays / max) * 120 + 4}px` }} />
+                  <div className="w-full rounded-t-[3px] bg-fg-3" style={{ height: `${(d.plays / max) * 120 + 4}px` }} />
                   <span className="text-fg-3 text-[10px]">{d.day.slice(8)}</span>
                 </div>
               ))}

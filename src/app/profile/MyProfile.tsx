@@ -5,6 +5,7 @@ import { api } from "@/client/api";
 import { useMe } from "@/client/me";
 import { Avatar } from "@/components/Avatar";
 import { ProfileView } from "@/components/ProfileView";
+import { AvatarUploader } from "@/components/AvatarUploader";
 
 const AVATARS = ["🦊", "🐼", "🦁", "🐯", "🐸", "🐙", "🦄", "🐲", "🦉", "🐧", "🦖", "🐨", "🐵", "🦈", "🐝", "🦩", "🐺", "🦝", "🐬", "🦜", "👾", "🤖", "👽", "🎃"];
 const COLORS = ["#8b5cf6", "#ec4899", "#f97316", "#22c55e", "#06b6d4", "#eab308", "#ef4444", "#3b82f6", "#14b8a6", "#a855f7"];
@@ -23,6 +24,7 @@ export function MyProfile() {
   const [friends, setFriends] = useState<{ friends: FriendRow[]; incoming: FriendRow[]; outgoing: FriendRow[] } | null>(null);
   const [friendName, setFriendName] = useState("");
   const [friendMsg, setFriendMsg] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const loadFriends = useCallback(() => api<typeof friends>("/api/friends").then(setFriends, () => undefined), []);
   useEffect(() => {
     void loadFriends();
@@ -96,7 +98,42 @@ export function MyProfile() {
             </label>
           </div>
           <div>
-            <div className="label mb-2">Avatar</div>
+            <div className="label mb-2">Profile picture</div>
+            {uploading ? (
+              <AvatarUploader
+                onCancel={() => setUploading(false)}
+                onSaved={async () => {
+                  await refresh();
+                  setUploading(false);
+                  setErr(null);
+                }}
+              />
+            ) : (
+              <div className="flex flex-wrap items-center gap-3">
+                <Avatar avatar={me.avatar} photo={me.photo} color={me.color} size={64} />
+                <button className="btn-ghost text-sm" onClick={() => setUploading(true)}>
+                  {me.photo ? "Change photo" : "Upload a photo"}
+                </button>
+                {me.photo && (
+                  <button
+                    className="text-sm text-ink-400 hover:text-bad-400"
+                    onClick={async () => {
+                      try {
+                        await api("/api/me/avatar", { method: "DELETE" });
+                        await refresh();
+                      } catch (e) {
+                        setErr((e as Error).message);
+                      }
+                    }}
+                  >
+                    Remove photo
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          <div>
+            <div className="label mb-2">{me.photo ? "Fallback avatar" : "Avatar"}</div>
             <div className="flex flex-wrap gap-2">
               {AVATARS.map((a) => (
                 <button key={a} onClick={() => void patch({ avatar: a })} className={`rounded-full ${me.avatar === a ? "ring-2 ring-brand-400" : ""}`}>

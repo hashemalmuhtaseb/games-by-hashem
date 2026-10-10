@@ -22,7 +22,7 @@ interface Row {
 const STATUS_TONE: Record<string, string> = {
   PUBLISHED: "text-good-400",
   PENDING_REVIEW: "text-warn-400",
-  DRAFT: "text-ink-300",
+  DRAFT: "text-fg-2",
   REJECTED: "text-bad-400",
   RETIRED: "text-bad-400",
 };
@@ -58,7 +58,7 @@ export function Questions({ preset, reviewMode }: { preset: { status?: string };
   return (
     <div className="space-y-4">
       {reviewMode ? (
-        <p className="text-ink-300 text-sm">AI drafts and editor submissions wait here. Automatic checks already removed malformed questions, giveaways and near-duplicates, but only a person can confirm a fact is true. Publish what you have checked; reject the rest.</p>
+        <p className="text-fg-2 text-sm">AI drafts and editor submissions wait here. Automatic checks already removed malformed questions, giveaways and near-duplicates, but only a person can confirm a fact is true. Publish what you have checked; reject the rest.</p>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
           <select className="input w-auto py-2" value={status} onChange={(e) => { setStatus(e.target.value); setPage(0); }}>
@@ -79,7 +79,7 @@ export function Questions({ preset, reviewMode }: { preset: { status?: string };
         </div>
       )}
       {creating && <CreateForm onDone={(m) => { setMsg(m); setCreating(false); void reload(); }} />}
-      {msg && <p className="text-ink-100 rounded-xl bg-white/5 px-3 py-2 text-sm">{msg}</p>}
+      {msg && <p className="text-fg rounded-xl bg-surface-2 px-3 py-2 text-sm">{msg}</p>}
       {error && <p className="text-bad-400">{error}</p>}
       {selected.size > 0 && (
         <div className="card sticky top-2 z-10 flex flex-wrap items-center gap-2 p-3">
@@ -88,20 +88,20 @@ export function Questions({ preset, reviewMode }: { preset: { status?: string };
           <button className="btn-ghost py-1.5" onClick={() => update([...selected], { status: "REJECTED" })}>Reject</button>
           <button className="btn-ghost py-1.5" onClick={() => update([...selected], { status: "RETIRED" })}>Retire</button>
           <button className="btn-ghost py-1.5" onClick={() => update([...selected], { clearReports: true })}>Clear reports</button>
-          <button className="text-ink-300 ml-auto text-sm" onClick={() => setSelected(new Set())}>Deselect</button>
+          <button className="text-fg-2 ml-auto text-sm" onClick={() => setSelected(new Set())}>Deselect</button>
         </div>
       )}
-      <div className="text-ink-400 text-xs">{data ? `${data.total.toLocaleString()} questions` : "Loading…"}</div>
+      <div className="text-fg-3 text-xs">{data ? `${data.total.toLocaleString()} questions` : "Loading…"}</div>
       <ul className="space-y-2">
         {rows.map((r) => (
           <QuestionRow key={r.id} r={r} selected={selected.has(r.id)} onToggle={() => toggle(r.id)} onUpdate={(p) => update([r.id], p)} />
         ))}
-        {data && rows.length === 0 && <li className="card text-ink-300 p-6 text-center">{reviewMode ? "Nothing waiting for review. 🎉" : "No questions match."}</li>}
+        {data && rows.length === 0 && <li className="card text-fg-2 p-6 text-center">{reviewMode ? "Nothing waiting for review. 🎉" : "No questions match."}</li>}
       </ul>
       {data && data.total > 50 && (
         <div className="flex items-center justify-center gap-3">
           <button className="btn-ghost" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>← Prev</button>
-          <span className="text-ink-300 text-sm">Page {page + 1} of {Math.ceil(data.total / 50)}</span>
+          <span className="text-fg-2 text-sm">Page {page + 1} of {Math.ceil(data.total / 50)}</span>
           <button className="btn-ghost" disabled={(page + 1) * 50 >= data.total} onClick={() => setPage((p) => p + 1)}>Next →</button>
         </div>
       )}
@@ -118,7 +118,7 @@ function QuestionRow({ r, selected, onToggle, onUpdate }: { r: Row; selected: bo
       <div className="flex items-start gap-3">
         <input type="checkbox" className="mt-1" checked={selected} onChange={onToggle} aria-label="Select question" />
         <div className="min-w-0 flex-1">
-          <div className="text-ink-400 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+          <div className="text-fg-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
             <span className={`font-bold ${STATUS_TONE[r.status] ?? ""}`}>{r.status.replace("_", " ")}</span>
             <span className="font-mono">{r.contentKey}</span>
             <span>{r.gameSlug}</span>
@@ -136,20 +136,20 @@ function QuestionRow({ r, selected, onToggle, onUpdate }: { r: Row; selected: bo
                 <p className="font-semibold">{p.question}</p>
                 <div className="mt-2 flex flex-wrap gap-1.5 text-sm">
                   <span className="bg-good-500/15 text-good-400 rounded-lg px-2 py-0.5">✓ {p.correct}</span>
-                  {p.wrong?.map((w) => <span key={w} className="text-ink-300 rounded-lg bg-white/5 px-2 py-0.5">{w}</span>)}
+                  {p.wrong?.map((w) => <span key={w} className="text-fg-2 rounded-lg bg-surface-2 px-2 py-0.5">{w}</span>)}
                 </div>
-                {p.explanation && <p className="text-ink-300 mt-2 text-sm">{p.explanation}</p>}
+                {p.explanation && <p className="text-fg-2 mt-2 text-sm">{p.explanation}</p>}
               </div>
             )
           ) : (
-            <p className="text-ink-300 mt-2 text-sm">Generated from {r.source?.name ?? "the bundled datasets"} (mode <code>{p.mode}</code>, item <code>{p.ref}</code>). Retire it to stop it being served.</p>
+            <p className="text-fg-2 mt-2 text-sm">Generated from {r.source?.name ?? "the bundled datasets"} (mode <code>{p.mode}</code>, item <code>{p.ref}</code>). Retire it to stop it being served.</p>
           )}
         </div>
         <div className="flex shrink-0 flex-col gap-1.5">
           {r.status !== "PUBLISHED" && <button className="btn-primary px-3 py-1.5 text-sm" onClick={() => onUpdate({ status: "PUBLISHED" })}>Publish</button>}
           {r.status === "PENDING_REVIEW" && <button className="btn-ghost px-3 py-1.5 text-sm" onClick={() => onUpdate({ status: "REJECTED" })}>Reject</button>}
           {r.status === "PUBLISHED" && <button className="btn-ghost px-3 py-1.5 text-sm" onClick={() => onUpdate({ status: "RETIRED" })}>Retire</button>}
-          {custom && !editing && <button className="text-ink-300 text-sm hover:text-white" onClick={() => setEditing(true)}>Edit</button>}
+          {custom && !editing && <button className="text-fg-2 text-sm hover:text-fg" onClick={() => setEditing(true)}>Edit</button>}
         </div>
       </div>
     </li>

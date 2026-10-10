@@ -17,40 +17,38 @@ export function MediaView({ m, size = "lg" }: { m: MediaRef; size?: "sm" | "md" 
           alt={m.alt}
           draggable={false}
           onContextMenu={(e) => e.preventDefault()}
-          className={`${max} w-auto max-w-full select-none object-contain ${flag ? "rounded-md shadow-[0_10px_40px_-10px_rgb(0_0_0/0.8)] ring-1 ring-white/10" : "rounded-xl"}`}
+          className={`${max} w-auto max-w-full select-none object-contain ${flag ? "rounded-[4px] shadow-[0_12px_32px_-12px_rgb(0_0_0/0.8)] ring-1 ring-white/10" : "rounded-xl"}`}
         />
       );
     }
     case "emoji":
-      return <div className={`${size === "lg" ? "text-6xl sm:text-7xl" : "text-4xl"} leading-tight tracking-widest select-none`}>{m.value}</div>;
+      return <div className={`${size === "lg" ? "text-6xl sm:text-7xl" : "text-4xl"} leading-tight tracking-[0.12em] select-none`}>{m.value}</div>;
     case "quote":
       return (
-        <blockquote className="display max-w-2xl text-center text-2xl font-semibold text-white sm:text-3xl">
-          <span className="text-brand-400">“</span>
-          {m.text}
-          <span className="text-brand-400">”</span>
-          {m.by && <footer className="mt-2 text-base font-normal text-ink-400">— {m.by}</footer>}
-        </blockquote>
+        <figure className="max-w-2xl text-center">
+          <blockquote className="serif text-[28px] leading-[1.25] text-fg sm:text-[34px]">&ldquo;{m.text}&rdquo;</blockquote>
+          {m.by && <figcaption className="mt-3 text-sm text-fg-3">{m.by}</figcaption>}
+        </figure>
       );
     case "facts":
       return (
-        <div className="grid w-full max-w-xl grid-cols-1 gap-2 sm:grid-cols-2">
+        <dl className="grid w-full max-w-xl grid-cols-1 overflow-hidden rounded-[var(--radius-md)] bg-surface-1 shadow-[inset_0_0_0_1px_var(--color-line)] sm:grid-cols-2">
           {m.items.map((f, i) => (
-            <motion.div key={i} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5">
-              <div className="label">{f.label}</div>
-              <div className="font-semibold text-white">{f.value}</div>
+            <motion.div key={i} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.04 }} className="border-line px-4 py-3 not-first:border-t sm:[&:nth-child(2)]:border-t-0 sm:even:border-l">
+              <dt className="label">{f.label}</dt>
+              <dd className="mt-0.5 font-medium text-fg">{f.value}</dd>
             </motion.div>
           ))}
-        </div>
+        </dl>
       );
     case "timeline":
       return (
         <div className="w-full max-w-xl">
-          {m.title && <div className="label mb-2">{m.title}</div>}
-          <ol className="relative space-y-2 border-l border-brand-500/40 pl-5">
+          {m.title && <div className="label mb-3">{m.title}</div>}
+          <ol className="relative flex flex-col gap-2.5 pl-6 before:absolute before:top-2 before:bottom-2 before:left-[5px] before:w-px before:bg-line-strong">
             {m.items.map((it, i) => (
-              <motion.li key={i} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }} className="relative font-medium text-white">
-                <span className="absolute top-1.5 -left-[25px] h-2.5 w-2.5 rounded-full bg-brand-400 ring-4 ring-ink-850" />
+              <motion.li key={i} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="relative text-[16px] text-fg">
+                <span className="absolute top-[7px] -left-6 h-[11px] w-[11px] rounded-full bg-canvas shadow-[inset_0_0_0_2px_var(--color-fg-3)]" />
                 {it}
               </motion.li>
             ))}
@@ -61,14 +59,14 @@ export function MediaView({ m, size = "lg" }: { m: MediaRef; size?: "sm" | "md" 
       return (
         <div className="flex flex-col items-center gap-2">
           <audio src={m.url} controls autoPlay className="w-72" controlsList="nodownload noplaybackrate" />
-          <span className="text-xs text-ink-400">{m.attribution}</span>
+          <span className="text-xs text-fg-3">{m.attribution}</span>
         </div>
       );
     case "words":
       return (
         <div className="flex max-w-2xl flex-wrap justify-center gap-2">
           {m.items.map((w, i) => (
-            <motion.span key={w + i} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.05 }} className="rounded-xl border border-white/10 bg-white/[0.06] px-4 py-2 text-lg font-semibold text-white">
+            <motion.span key={w + i} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }} className="rounded-[var(--radius-sm)] bg-surface-2 px-4 py-2 text-lg font-medium text-fg shadow-[inset_0_0_0_1px_var(--color-line)]">
               {w}
             </motion.span>
           ))}

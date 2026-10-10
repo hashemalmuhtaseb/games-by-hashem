@@ -182,7 +182,7 @@ export function RoomClient({ code }: { code: string }) {
       <div className="grid min-h-dvh place-items-center px-4">
         <div className="card max-w-md p-8 text-center">
           <div className="text-5xl">🚪</div>
-          <p className="mt-4 text-lg text-white">{error}</p>
+          <p className="mt-4 text-lg text-fg">{error}</p>
           <div className="mt-6 flex justify-center gap-2">
             <Link href="/party" className="btn-ghost">
               Find another room
@@ -198,8 +198,8 @@ export function RoomClient({ code }: { code: string }) {
   if (!state)
     return (
       <div className="grid min-h-dvh place-items-center">
-        <div className="flex flex-col items-center gap-3 text-ink-400">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-white/10 border-t-brand-400" />
+        <div className="flex flex-col items-center gap-3 text-fg-3">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-line border-t-brand-400" />
           Joining room {code}…
         </div>
       </div>
@@ -213,14 +213,14 @@ export function RoomClient({ code }: { code: string }) {
   return (
     <div className="mx-auto flex min-h-dvh max-w-7xl flex-col px-4 pb-6">
       <header className="flex items-center gap-3 py-3">
-        <button onClick={leave} className="rounded-lg p-2 text-ink-400 hover:bg-white/5 hover:text-white" aria-label="Leave room">
+        <button onClick={leave} className="rounded-lg p-2 text-fg-3 hover:bg-surface-2 hover:text-fg" aria-label="Leave room">
           ←
         </button>
         <span className="text-2xl">{state.game?.icon}</span>
         <div className="flex-1 leading-tight">
-          <div className="display font-bold text-white">{state.game?.name}</div>
-          <div className="text-xs text-ink-400">
-            Room <b className="font-mono tracking-wider text-ink-300">{state.code}</b> · <span className="capitalize">{state.settings.mode}</span>
+          <div className="display font-bold text-fg">{state.game?.name}</div>
+          <div className="text-xs text-fg-3">
+            Room <b className="font-mono tracking-wider text-fg-2">{state.code}</b> · <span className="capitalize">{state.settings.mode}</span>
             {inGame && state.index >= 0 && ` · round ${state.index + 1}${state.totalRounds ? `/${state.totalRounds}` : ""}`}
             {state.stageGames.length > 0 && ` · stage ${state.stage + 1}/${state.stageGames.length}`}
           </div>
@@ -235,7 +235,7 @@ export function RoomClient({ code }: { code: string }) {
           {reactions.map((r) => (
             <motion.div key={r.id} initial={{ y: "100vh", opacity: 1 }} animate={{ y: "35vh", opacity: 0 }} transition={{ duration: 2.5, ease: "easeOut" }} className="absolute flex flex-col items-center" style={{ left: `${r.x}%` }}>
               <span className="text-5xl">{r.emoji}</span>
-              <span className="text-xs text-ink-300">{r.name}</span>
+              <span className="text-xs text-fg-2">{r.name}</span>
             </motion.div>
           ))}
         </AnimatePresence>
@@ -277,7 +277,7 @@ export function RoomClient({ code }: { code: string }) {
                   <motion.div key={round.round.roundId} initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }} className="flex flex-col items-center gap-5">
                     <RoundPlayer round={round.round} act={act} locked={spectating || !!mine?.done || state.paused} reveal={reveal} resume={resume} />
                     {mine?.done && !reveal && (
-                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center text-ink-300">
+                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center text-fg-2">
                         ✓ Locked in{mine.points !== undefined ? ` — ${mine.points > 0 ? "+" : ""}${mine.points} pts` : ""}. Waiting for the others…
                       </motion.div>
                     )}
@@ -361,9 +361,9 @@ function Countdown({ endsAt, offset, title }: { endsAt: number | null; offset: n
   return (
     <div className="grid flex-1 place-items-center py-20">
       <div className="text-center">
-        <div className="display text-2xl font-bold text-ink-300">{title}</div>
+        <div className="display text-2xl font-bold text-fg-2">{title}</div>
         <AnimatePresence mode="popLayout">
-          <motion.div key={n} initial={{ scale: 2, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }} className="display bg-gradient-to-br from-brand-400 to-hot-500 bg-clip-text text-[10rem] leading-none font-black text-transparent">
+          <motion.div key={n} initial={{ scale: 2, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }} className="display bg-gradient-to-br from-brand-400 to-hot-500 bg-clip-text text-[10rem] leading-none font-semibold text-transparent">
             {n > 0 ? n : "GO"}
           </motion.div>
         </AnimatePresence>
@@ -374,7 +374,7 @@ function Countdown({ endsAt, offset, title }: { endsAt: number | null; offset: n
 
 function NextBar({ endsAt, offset }: { endsAt: number | null; offset: number }) {
   const left = useCountdown(endsAt, offset);
-  return <div className="text-center text-sm text-ink-400">Next round in {Math.ceil(left)}s</div>;
+  return <div className="text-center text-sm text-fg-3">Next round in {Math.ceil(left)}s</div>;
 }
 
 function StageBreak({ state }: { state: RoomSnapshot }) {
@@ -387,7 +387,7 @@ function StageBreak({ state }: { state: RoomSnapshot }) {
       {next && (
         <div className="mt-6">
           <div className="label">Next up</div>
-          <div className="display mt-1 text-3xl font-black text-white">
+          <div className="display mt-1 text-3xl font-semibold text-fg">
             {next.icon} {next.name}
           </div>
         </div>
@@ -409,13 +409,13 @@ function AnswersList({ reveal, state }: { reveal: RoomReveal; state: RoomSnapsho
           const p = byId.get(r.playerId);
           if (!p) return null;
           return (
-            <div key={r.playerId} className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm ${r.correct ? "bg-good-500/10" : "bg-white/[0.03]"}`}>
+            <div key={r.playerId} className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm ${r.correct ? "bg-good-500/10" : "bg-surface-1"}`}>
               <Avatar avatar={p.avatar} color={p.color} size={26} />
               <span className="min-w-0 flex-1">
-                <span className="block truncate font-semibold text-white">{p.name}</span>
-                <span className="block truncate text-xs text-ink-400">{r.answer ?? "—"}</span>
+                <span className="block truncate font-semibold text-fg">{p.name}</span>
+                <span className="block truncate text-xs text-fg-3">{r.answer ?? "—"}</span>
               </span>
-              <span className={`font-bold tabular-nums ${r.correct ? "text-good-400" : r.points < 0 ? "text-bad-400" : "text-ink-400"}`}>
+              <span className={`font-bold tabular-nums ${r.correct ? "text-good-400" : r.points < 0 ? "text-bad-400" : "text-fg-3"}`}>
                 {r.points > 0 ? "+" : ""}
                 {r.points}
               </span>
@@ -435,7 +435,7 @@ function Results({ state, me, isHost }: { state: RoomSnapshot; me: string; isHos
     <div className="mx-auto w-full max-w-3xl py-6">
       <div className="text-center">
         <div className="label">Winner</div>
-        <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="display mt-1 bg-gradient-to-r from-amber-300 via-hot-500 to-brand-400 bg-clip-text text-5xl font-black text-transparent sm:text-6xl">
+        <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="display mt-1 bg-gradient-to-r from-amber-300 via-hot-500 to-brand-400 bg-clip-text text-5xl font-semibold text-transparent sm:text-6xl">
           🏆 {f.winnerName}
         </motion.div>
       </div>
@@ -443,8 +443,8 @@ function Results({ state, me, isHost }: { state: RoomSnapshot; me: string; isHos
         <div className="mt-6 flex justify-center gap-3">
           {f.teams.map((t) => (
             <div key={t.team} className="card px-5 py-3 text-center">
-              <div className="text-xs font-bold uppercase text-ink-400">#{t.rank} Team {t.name}</div>
-              <div className="display text-2xl font-black text-white">{t.score}</div>
+              <div className="text-xs font-bold uppercase text-fg-3">#{t.rank} Team {t.name}</div>
+              <div className="display text-2xl font-semibold text-fg">{t.score}</div>
             </div>
           ))}
         </div>
@@ -456,10 +456,10 @@ function Results({ state, me, isHost }: { state: RoomSnapshot; me: string; isHos
           return (
             <motion.div key={s.playerId} initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 + (2 - i) * 0.25 }} className="flex w-28 flex-col items-center sm:w-36">
               <Avatar avatar={s.avatar} color={s.color} size={i === 0 ? 72 : 56} ring={i === 0} />
-              <div className="mt-2 max-w-full truncate font-bold text-white">{s.name}</div>
-              <div className="text-sm text-ink-300 tabular-nums">{s.score}</div>
+              <div className="mt-2 max-w-full truncate font-bold text-fg">{s.name}</div>
+              <div className="text-sm text-fg-2 tabular-nums">{s.score}</div>
               <div className={`mt-2 grid w-full place-items-center rounded-t-2xl ${h} ${i === 0 ? "bg-gradient-to-b from-amber-400/40 to-amber-400/5" : i === 1 ? "bg-gradient-to-b from-slate-300/30 to-slate-300/5" : "bg-gradient-to-b from-orange-700/40 to-orange-700/5"}`}>
-                <span className="display text-4xl font-black text-white/80">{i + 1}</span>
+                <span className="display text-4xl font-semibold text-fg/80">{i + 1}</span>
               </div>
             </motion.div>
           );
@@ -469,10 +469,10 @@ function Results({ state, me, isHost }: { state: RoomSnapshot; me: string; isHos
         <ol className="flex flex-col gap-1.5">
           {f.standings.map((s) => (
             <li key={s.playerId} className={`flex items-center gap-3 rounded-xl px-3 py-2 ${s.playerId === me ? "bg-brand-500/15" : ""}`}>
-              <span className="w-6 text-center font-bold text-ink-400">{s.rank}</span>
+              <span className="w-6 text-center font-bold text-fg-3">{s.rank}</span>
               <Avatar avatar={s.avatar} color={s.color} size={30} dim={s.eliminated} />
-              <span className="flex-1 font-semibold text-white">{s.name}</span>
-              <span className="text-xs text-ink-400">{s.correct} correct</span>
+              <span className="flex-1 font-semibold text-fg">{s.name}</span>
+              <span className="text-xs text-fg-3">{s.correct} correct</span>
               {s.rating && (
                 <span className={`text-xs font-semibold ${s.rating.delta >= 0 ? "text-good-400" : "text-bad-400"}`}>
                   {s.rating.rating} ({s.rating.delta >= 0 ? "+" : ""}
@@ -480,7 +480,7 @@ function Results({ state, me, isHost }: { state: RoomSnapshot; me: string; isHos
                 </span>
               )}
               {s.xp !== undefined && <span className="chip">+{s.xp} XP</span>}
-              <span className="display w-16 text-right font-bold text-white tabular-nums">{s.score}</span>
+              <span className="display w-16 text-right font-bold text-fg tabular-nums">{s.score}</span>
             </li>
           ))}
         </ol>
@@ -506,7 +506,7 @@ function Results({ state, me, isHost }: { state: RoomSnapshot; me: string; isHos
             </button>
           </>
         ) : (
-          <div className="text-ink-400">Waiting for the host to start another game…</div>
+          <div className="text-fg-3">Waiting for the host to start another game…</div>
         )}
       </div>
     </div>

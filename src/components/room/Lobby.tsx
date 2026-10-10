@@ -42,7 +42,7 @@ export function Lobby({ state, me }: { state: RoomSnapshot; me: string }) {
       <div className="flex flex-col gap-4">
         <div className="card p-6 text-center">
           <div className="label">Room code</div>
-          <div className="display mt-1 font-mono text-6xl font-black tracking-[0.2em] text-white">{state.code}</div>
+          <div className="display mt-1 font-mono text-6xl font-semibold tracking-[0.2em] text-fg">{state.code}</div>
           <div className="mt-4 flex justify-center gap-2">
             <button
               className="btn-ghost"
@@ -69,7 +69,7 @@ export function Lobby({ state, me }: { state: RoomSnapshot; me: string }) {
               Players {players.length}/{s.maxPlayers}
             </h2>
             {mePlayer && (
-              <button className="text-xs text-ink-400 hover:text-white" onClick={() => void emit("room:spectate", { spectator: !mePlayer.spectator }).then((r) => setErr(r.error ?? null))}>
+              <button className="text-xs text-fg-3 hover:text-fg" onClick={() => void emit("room:spectate", { spectator: !mePlayer.spectator }).then((r) => setErr(r.error ?? null))}>
                 {mePlayer.spectator ? "Join as player" : "Switch to spectator"}
               </button>
             )}
@@ -83,7 +83,7 @@ export function Lobby({ state, me }: { state: RoomSnapshot; me: string }) {
                       Team {TEAM_NAMES[t]}
                     </span>
                     {mePlayer && !mePlayer.spectator && mePlayer.team !== t && (
-                      <button className="text-xs text-ink-300 hover:text-white" onClick={() => void emit("room:team", { team: t })}>
+                      <button className="text-xs text-fg-2 hover:text-fg" onClick={() => void emit("room:team", { team: t })}>
                         Join
                       </button>
                     )}
@@ -101,18 +101,18 @@ export function Lobby({ state, me }: { state: RoomSnapshot; me: string }) {
             <PlayerList state={state} me={me} filter={(p) => !p.spectator} isHost={isHost} />
           )}
           {state.players.some((p) => p.spectator) && (
-            <div className="mt-3 border-t border-white/5 pt-3">
+            <div className="mt-3 border-t border-line pt-3">
               <div className="label mb-2">Spectators</div>
               <PlayerList state={state} me={me} filter={(p) => p.spectator} isHost={isHost} />
             </div>
           )}
-          {players.length < 2 && <p className="mt-3 text-center text-sm text-ink-400">Waiting for friends… share the code above. You can also start solo.</p>}
+          {players.length < 2 && <p className="mt-3 text-center text-sm text-fg-3">Waiting for friends… share the code above. You can also start solo.</p>}
         </div>
       </div>
 
       <div className="card flex flex-col gap-5 p-6">
         <div className="flex items-center justify-between">
-          <h2 className="display text-xl font-bold text-white">Game settings</h2>
+          <h2 className="display text-xl font-bold text-fg">Game settings</h2>
           {!isHost && <span className="chip">Only the host can change these</span>}
         </div>
         <div>
@@ -123,20 +123,20 @@ export function Lobby({ state, me }: { state: RoomSnapshot; me: string }) {
                 key={g.slug}
                 disabled={!isHost}
                 onClick={() => void set({ gameSlug: g.slug })}
-                className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm transition disabled:cursor-default ${g.slug === s.gameSlug ? "border-brand-400 bg-brand-500/20 text-white" : "border-white/10 bg-white/[0.03] text-ink-300 enabled:hover:border-white/25"}`}
+                className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm transition disabled:cursor-default ${g.slug === s.gameSlug ? "border-brand-400 bg-brand-500/20 text-fg" : "border-line bg-surface-1 text-fg-2 enabled:hover:border-line-strong"}`}
               >
                 <span className="text-xl">{g.icon}</span>
                 <span className="font-semibold leading-tight">{g.name}</span>
               </button>
             ))}
-            {!games.length && <div className="col-span-3 h-24 animate-pulse rounded-xl bg-white/5" />}
+            {!games.length && <div className="col-span-3 h-24 animate-pulse rounded-xl bg-surface-2" />}
           </div>
         </div>
         {game && s.mode !== "ranked" && s.mode !== "tournament" && game.modes.filter((m) => m.available).length > 1 && (
           <div>
             <div className="mb-2 flex items-center justify-between">
               <span className="label">Modes {s.modes?.length ? `(${s.modes.length} selected)` : "(all mixed)"}</span>
-              <button className="text-xs text-brand-400 hover:text-white" onClick={() => setShowModes((x) => !x)}>
+              <button className="text-xs text-brand-400 hover:text-fg" onClick={() => setShowModes((x) => !x)}>
                 {showModes ? "Hide" : isHost ? "Customise" : "Show"}
               </button>
             </div>
@@ -151,7 +151,7 @@ export function Lobby({ state, me }: { state: RoomSnapshot; me: string }) {
                       title={m.description}
                       disabled={!isHost}
                       onClick={() => void set({ modes: on ? (s.modes ?? []).filter((x) => x !== m.id) : [...(s.modes ?? []), m.id] })}
-                      className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition disabled:cursor-default ${on ? "border-brand-400 bg-brand-500/20 text-white" : "border-white/10 text-ink-300 enabled:hover:text-white"}`}
+                      className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition disabled:cursor-default ${on ? "border-brand-400 bg-brand-500/20 text-fg" : "border-line text-fg-2 enabled:hover:text-fg"}`}
                     >
                       {m.label}
                     </button>
@@ -169,10 +169,10 @@ export function Lobby({ state, me }: { state: RoomSnapshot; me: string }) {
                 disabled={!isHost}
                 title={m.desc}
                 onClick={() => void set({ mode: m.id })}
-                className={`rounded-xl border px-3 py-2 text-left text-sm transition disabled:cursor-default ${m.id === s.mode ? "border-brand-400 bg-brand-500/20 text-white" : "border-white/10 bg-white/[0.03] text-ink-300 enabled:hover:border-white/25"}`}
+                className={`rounded-xl border px-3 py-2 text-left text-sm transition disabled:cursor-default ${m.id === s.mode ? "border-brand-400 bg-brand-500/20 text-fg" : "border-line bg-surface-1 text-fg-2 enabled:hover:border-line-strong"}`}
               >
                 <div className="font-semibold">{m.label}</div>
-                <div className="text-[11px] leading-tight text-ink-400">{m.desc}</div>
+                <div className="text-[11px] leading-tight text-fg-3">{m.desc}</div>
               </button>
             ))}
           </div>
@@ -188,7 +188,7 @@ export function Lobby({ state, me }: { state: RoomSnapshot; me: string }) {
                     key={g.slug}
                     disabled={!isHost || (!on && s.tournamentGames.length >= 5)}
                     onClick={() => void set({ tournamentGames: on ? s.tournamentGames.filter((x) => x !== g.slug) : [...s.tournamentGames, g.slug] })}
-                    className={`rounded-lg border px-2.5 py-1 text-xs font-medium ${on ? "border-brand-400 bg-brand-500/20 text-white" : "border-white/10 text-ink-300"}`}
+                    className={`rounded-lg border px-2.5 py-1 text-xs font-medium ${on ? "border-brand-400 bg-brand-500/20 text-fg" : "border-line text-fg-2"}`}
                   >
                     {g.icon} {g.name}
                   </button>
@@ -244,7 +244,7 @@ export function Lobby({ state, me }: { state: RoomSnapshot; me: string }) {
             {starting ? "Starting…" : `▶ Start ${game ? game.name : "game"}`}
           </button>
         ) : (
-          <div className="mt-auto rounded-xl bg-white/[0.04] py-4 text-center text-ink-300">Waiting for the host to start…</div>
+          <div className="mt-auto rounded-xl bg-surface-1 py-4 text-center text-fg-2">Waiting for the host to start…</div>
         )}
       </div>
     </div>
@@ -257,38 +257,38 @@ function PlayerList({ state, me, filter, isHost }: { state: RoomSnapshot; me: st
   return (
     <ul className="flex flex-col gap-1.5">
       {list.map((p) => (
-        <motion.li key={p.id} layout initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="relative flex items-center gap-3 rounded-xl bg-white/[0.03] px-3 py-2">
+        <motion.li key={p.id} layout initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="relative flex items-center gap-3 rounded-xl bg-surface-1 px-3 py-2">
           <Avatar avatar={p.avatar} color={p.color} size={34} dim={!p.connected} />
-          <span className="flex-1 truncate font-semibold text-white">
+          <span className="flex-1 truncate font-semibold text-fg">
             {p.name}
-            {p.id === me && <span className="ml-1 text-xs text-ink-400">(you)</span>}
+            {p.id === me && <span className="ml-1 text-xs text-fg-3">(you)</span>}
           </span>
           {p.isHost && <span title="Host">👑</span>}
-          {!p.connected && <span className="text-xs text-ink-400">offline</span>}
+          {!p.connected && <span className="text-xs text-fg-3">offline</span>}
           {isHost && p.id !== me && (
-            <button className="rounded px-2 text-ink-400 hover:bg-white/10 hover:text-white" onClick={() => setMenu(menu === p.id ? null : p.id)} aria-label="Player options">
+            <button className="rounded px-2 text-fg-3 hover:bg-surface-3 hover:text-fg" onClick={() => setMenu(menu === p.id ? null : p.id)} aria-label="Player options">
               ⋯
             </button>
           )}
           {menu === p.id && (
-            <div className="absolute top-full right-0 z-20 mt-1 flex w-44 flex-col rounded-xl border border-white/10 bg-ink-800 p-1 text-sm shadow-2xl">
-              <button className="rounded-lg px-3 py-1.5 text-left hover:bg-white/10" onClick={() => void emit("room:host", { playerId: p.id }).then(() => setMenu(null))}>
+            <div className="absolute top-full right-0 z-20 mt-1 flex w-44 flex-col rounded-xl border border-line bg-ink-800 p-1 text-sm shadow-2xl">
+              <button className="rounded-lg px-3 py-1.5 text-left hover:bg-surface-3" onClick={() => void emit("room:host", { playerId: p.id }).then(() => setMenu(null))}>
                 👑 Make host
               </button>
-              <button className="rounded-lg px-3 py-1.5 text-left hover:bg-white/10" onClick={() => void emit("room:mute", { playerId: p.id, minutes: 10 }).then(() => setMenu(null))}>
+              <button className="rounded-lg px-3 py-1.5 text-left hover:bg-surface-3" onClick={() => void emit("room:mute", { playerId: p.id, minutes: 10 }).then(() => setMenu(null))}>
                 🔇 Mute 10 min
               </button>
-              <button className="rounded-lg px-3 py-1.5 text-left text-bad-400 hover:bg-white/10" onClick={() => void emit("room:kick", { playerId: p.id }).then(() => setMenu(null))}>
+              <button className="rounded-lg px-3 py-1.5 text-left text-bad-400 hover:bg-surface-3" onClick={() => void emit("room:kick", { playerId: p.id }).then(() => setMenu(null))}>
                 Remove
               </button>
-              <button className="rounded-lg px-3 py-1.5 text-left text-bad-400 hover:bg-white/10" onClick={() => void emit("room:kick", { playerId: p.id, ban: true }).then(() => setMenu(null))}>
+              <button className="rounded-lg px-3 py-1.5 text-left text-bad-400 hover:bg-surface-3" onClick={() => void emit("room:kick", { playerId: p.id, ban: true }).then(() => setMenu(null))}>
                 Ban from room
               </button>
             </div>
           )}
         </motion.li>
       ))}
-      {!list.length && <li className="py-2 text-center text-xs text-ink-400">Nobody yet</li>}
+      {!list.length && <li className="py-2 text-center text-xs text-fg-3">Nobody yet</li>}
     </ul>
   );
 }
@@ -297,12 +297,12 @@ function NumberSetting({ label, value, min, max, disabled, onChange }: { label: 
   return (
     <label className="flex flex-col gap-1">
       <span className="label">{label}</span>
-      <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-ink-900/60 p-1">
-        <button type="button" className="h-8 w-8 rounded-lg hover:bg-white/10 disabled:opacity-30" disabled={disabled || value <= min} onClick={() => onChange(value - 1)}>
+      <div className="flex items-center gap-1 rounded-xl border border-line bg-surface-1 p-1">
+        <button type="button" className="h-8 w-8 rounded-lg hover:bg-surface-3 disabled:opacity-30" disabled={disabled || value <= min} onClick={() => onChange(value - 1)}>
           −
         </button>
-        <span className="flex-1 text-center font-bold text-white tabular-nums">{value}</span>
-        <button type="button" className="h-8 w-8 rounded-lg hover:bg-white/10 disabled:opacity-30" disabled={disabled || value >= max} onClick={() => onChange(value + 1)}>
+        <span className="flex-1 text-center font-bold text-fg tabular-nums">{value}</span>
+        <button type="button" className="h-8 w-8 rounded-lg hover:bg-surface-3 disabled:opacity-30" disabled={disabled || value >= max} onClick={() => onChange(value + 1)}>
           +
         </button>
       </div>
@@ -327,9 +327,9 @@ function SelectSetting({ label, value, options, disabled, onChange }: { label: s
 
 function Toggle({ label, value, disabled, onChange }: { label: string; value: boolean; disabled: boolean; onChange: (v: boolean) => void }) {
   return (
-    <button type="button" disabled={disabled} onClick={() => onChange(!value)} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 disabled:cursor-default">
-      <span className="text-ink-100">{label}</span>
-      <span className={`relative h-5 w-9 rounded-full transition ${value ? "bg-brand-500" : "bg-white/15"}`}>
+    <button type="button" disabled={disabled} onClick={() => onChange(!value)} className="flex items-center justify-between rounded-xl border border-line bg-surface-1 px-3 py-2 disabled:cursor-default">
+      <span className="text-fg">{label}</span>
+      <span className={`relative h-5 w-9 rounded-full transition ${value ? "bg-brand-500" : "bg-surface-3"}`}>
         <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${value ? "left-[18px]" : "left-0.5"}`} />
       </span>
     </button>

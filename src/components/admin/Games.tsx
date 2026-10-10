@@ -31,15 +31,15 @@ export function Games({ canEdit }: { canEdit: boolean }) {
   if (error) return <p className="text-bad-400">{error}</p>;
   return (
     <div className="space-y-3">
-      {msg && <p className="rounded-xl bg-white/5 px-3 py-2 text-sm">{msg}</p>}
-      {!canEdit && <p className="text-ink-300 text-sm">Read-only: only admins can change game settings.</p>}
+      {msg && <p className="rounded-xl bg-surface-2 px-3 py-2 text-sm">{msg}</p>}
+      {!canEdit && <p className="text-fg-2 text-sm">Read-only: only admins can change game settings.</p>}
       {data?.games.map((g) => (
         <div key={g.slug} className="card p-4">
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-2xl">{g.icon}</span>
             <div className="min-w-0 flex-1">
               <div className="font-semibold">{g.name} {!g.enabled && <span className="text-bad-400 text-xs">disabled</span>}</div>
-              <div className="text-ink-400 text-xs">{g.questionCount.toLocaleString()} questions · {g.modes.filter((m) => m.available).length}/{g.modes.length} modes available</div>
+              <div className="text-fg-3 text-xs">{g.questionCount.toLocaleString()} questions · {g.modes.filter((m) => m.available).length}/{g.modes.length} modes available</div>
             </div>
             <button className="btn-ghost px-3 py-1.5 text-sm" onClick={() => setOpen(open === g.slug ? null : g.slug)}>{open === g.slug ? "Close" : "Details"}</button>
             {canEdit && (
@@ -61,7 +61,7 @@ function GameDetails({ g, defaults, canEdit, onSave }: { g: Game; defaults: Reco
         <h3 className="label mb-2">Modes</h3>
         <ul className="space-y-1 text-sm">
           {g.modes.map((m) => (
-            <li key={m.id} className={m.available ? "" : "text-ink-400"}>{m.available ? "✓" : "○"} {m.label}{m.reason && <span className="text-xs"> — {m.reason}</span>}</li>
+            <li key={m.id} className={m.available ? "" : "text-fg-3"}>{m.available ? "✓" : "○"} {m.label}{m.reason && <span className="text-xs"> — {m.reason}</span>}</li>
           ))}
         </ul>
       </div>
@@ -70,7 +70,7 @@ function GameDetails({ g, defaults, canEdit, onSave }: { g: Game; defaults: Reco
         <div className="grid grid-cols-2 gap-2">
           {FIELDS.map((f) => (
             <label key={f.key} className="grid gap-0.5 text-xs">
-              <span className="text-ink-300">{f.label}</span>
+              <span className="text-fg-2">{f.label}</span>
               <input className="input py-1.5" type="number" step={f.step} disabled={!canEdit} placeholder={String(defaults[f.key])} value={s[f.key] ?? ""} onChange={(e) => setS({ ...s, [f.key]: e.target.value })} />
             </label>
           ))}

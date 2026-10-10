@@ -15,9 +15,9 @@ export function LoginForm() {
   return (
     <div className="mx-auto max-w-md px-4 py-16">
       <div className="card p-8">
-        <div className="mb-6 flex rounded-xl bg-white/[0.04] p-1">
+        <div className="mb-6 flex rounded-xl bg-surface-1 p-1">
           {(["register", "login"] as const).map((t) => (
-            <button key={t} onClick={() => setTab(t)} className={`flex-1 rounded-lg py-2 text-sm font-semibold ${tab === t ? "bg-white/10 text-white" : "text-ink-400"}`}>
+            <button key={t} onClick={() => setTab(t)} className={`flex-1 rounded-lg py-2 text-sm font-semibold ${tab === t ? "bg-surface-3 text-fg" : "text-fg-3"}`}>
               {t === "register" ? "Create account" : "Sign in"}
             </button>
           ))}
@@ -50,13 +50,13 @@ export function LoginForm() {
             <span className="label">Password</span>
             <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={tab === "login" ? "current-password" : "new-password"} minLength={tab === "register" ? 8 : 1} required />
           </label>
-          {tab === "register" && <p className="text-xs text-ink-400">3–20 letters, numbers or _. Password: at least 8 characters.</p>}
+          {tab === "register" && <p className="text-xs text-fg-3">3–20 letters, numbers or _. Password: at least 8 characters.</p>}
           {err && <p className="text-sm text-bad-400">{err}</p>}
           <button className="btn-primary mt-2 py-3" disabled={busy}>
             {busy ? "…" : tab === "register" ? "Create account" : "Sign in"}
           </button>
         </form>
-        <p className="mt-6 text-center text-xs text-ink-400">No account needed to play — guests keep their progress on this device.</p>
+        <p className="mt-6 text-center text-xs text-fg-3">No account needed to play — guests keep their progress on this device.</p>
       </div>
     </div>
   );

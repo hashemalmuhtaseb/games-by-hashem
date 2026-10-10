@@ -11,6 +11,9 @@ import { useMe } from "@/client/me";
 import { RoundPlayer, TimerBar, type ActResponse } from "./Round";
 import { RevealPanel } from "./Reveal";
 import { Summary } from "./Summary";
+import { CountUp } from "@/components/ui/CountUp";
+import { GameGlyph } from "@/components/ui/GameGlyph";
+import { Icon } from "@/components/ui/Icon";
 
 type Variant = "classic" | "survival" | "ranked" | "chaos" | "daily";
 interface GameLite {
@@ -18,6 +21,7 @@ interface GameLite {
   name: string;
   icon: string;
   accent: [string, string];
+  group?: string;
 }
 
 export function SoloPlay({ game, variant, modes }: { game: GameLite; variant: Variant; modes?: string[] }) {
@@ -149,52 +153,64 @@ export function SoloPlay({ game, variant, modes }: { game: GameLite; variant: Va
   }, [reveal, next]);
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-4xl flex-col px-4 pb-10">
-      <header className="flex items-center gap-3 py-4">
-        <Link href={game.slug === "roulette" && variant === "daily" ? "/" : `/games/${game.slug}`} className="rounded-lg p-2 text-ink-400 hover:bg-white/5 hover:text-white" aria-label="Back">
-          ←
-        </Link>
-        <span className="text-2xl">{game.icon}</span>
-        <div className="flex-1 leading-tight">
-          <div className="display font-bold text-white">{game.name}</div>
-          <div className="text-xs text-ink-400 capitalize">
-            {variant === "daily" ? new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" }) : variant}
-            {view && ` · round ${view.index + 1}${view.total ? ` / ${view.total}` : ""}`}
+    <div className="mx-auto flex min-h-dvh max-w-4xl flex-col px-5 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:px-8">
+      <header className="sticky top-0 z-30 -mx-5 bg-canvas/90 px-5 pt-[env(safe-area-inset-top)] backdrop-blur-md sm:-mx-8 sm:px-8">
+        <div className="flex h-16 items-center gap-3">
+          <Link href={game.slug === "roulette" && variant === "daily" ? "/" : `/games/${game.slug}`} className="btn-icon -ml-2" aria-label="Leave game">
+            <Icon name="x" size={20} />
+          </Link>
+          <GameGlyph slug={game.slug} group={game.group} name={game.name} size={32} />
+          <div className="min-w-0 flex-1 leading-tight">
+            <div className="truncate text-[15px] font-semibold text-fg">{game.name}</div>
+            <div className="num truncate text-[13px] text-fg-3">
+              {variant === "daily" ? new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" }) : VARIANT_LABEL[variant]}
+              {view && ` · Round ${view.index + 1}${view.total ? ` of ${view.total}` : ""}`}
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <AnimatePresence>
+              {streak >= 2 && (
+                <motion.span initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="num flex items-center gap-1 text-sm font-medium text-warn-400" aria-label={`Streak ${streak}`}>
+                  <Icon name="flame" size={16} />
+                  {streak}
+                </motion.span>
+              )}
+            </AnimatePresence>
+            {lives !== null && (
+              <span className="flex gap-1" aria-label={`${lives} lives left`}>
+                {Array.from({ length: 3 }, (_, i) => (
+                  <Icon key={i} name="heart" size={16} className={`transition-colors duration-300 ${i < lives ? "fill-bad-400 text-bad-400" : "text-fg-4"}`} />
+                ))}
+              </span>
+            )}
+            <div className="text-right">
+              <CountUp value={score} className="display num block text-[22px] leading-none font-semibold text-fg" />
+              <span className="text-[11px] text-fg-3">points</span>
+            </div>
+            {view && !summary && (
+              <button onClick={quit} className="btn-quiet btn-sm -mr-2 hidden sm:inline-flex">
+                End
+              </button>
+            )}
           </div>
         </div>
-        {lives !== null && (
-          <div className="flex gap-0.5 text-lg" aria-label={`${lives} lives`}>
-            {Array.from({ length: 3 }, (_, i) => (
-              <span key={i} className={i < lives ? "" : "opacity-20 grayscale"}>
-                ❤️
-              </span>
-            ))}
-          </div>
-        )}
-        <AnimatePresence>
-          {streak >= 2 && (
-            <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} className="chip border-orange-500/40 text-orange-400">
-              🔥 {streak}
-            </motion.span>
-          )}
-        </AnimatePresence>
-        <motion.div key={score} initial={{ scale: 1.25 }} animate={{ scale: 1 }} className="display min-w-16 text-right text-2xl font-black text-white tabular-nums">
-          {score}
-        </motion.div>
         {view && !summary && (
-          <button onClick={quit} className="rounded-lg px-2 py-1 text-xs text-ink-400 hover:bg-white/5 hover:text-white">
-            End
-          </button>
+          <div className="pb-2">
+            <TimerBar deadline={view.deadline} offset={offset} total={view.round.timeLimitSec} onZero={onTimeUp} stopped={!!reveal} />
+          </div>
         )}
       </header>
 
       {error && (
-        <div className="card mx-auto mt-16 max-w-md p-8 text-center">
-          <div className="text-4xl">😵</div>
-          <p className="mt-3 text-ink-100">{error}</p>
-          <div className="mt-5 flex justify-center gap-2">
+        <div className="mx-auto mt-24 max-w-sm text-center">
+          <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-surface-2 text-fg-2">
+            <Icon name={/already played/i.test(error) ? "calendar" : "wifi"} size={22} />
+          </div>
+          <p className="mt-5 text-[17px] text-fg">{/already played/i.test(error) ? "You've played today's challenge." : "That didn't work."}</p>
+          <p className="mt-1.5 text-sm text-fg-3">{/already played/i.test(error) ? "A new set of ten arrives at midnight UTC." : error}</p>
+          <div className="mt-6 flex justify-center gap-2">
             <Link href="/" className="btn-ghost">
-              Home
+              Library
             </Link>
             {!/already played/i.test(error) && (
               <button className="btn-primary" onClick={() => void start()}>
@@ -203,7 +219,7 @@ export function SoloPlay({ game, variant, modes }: { game: GameLite; variant: Va
             )}
             {/already played/i.test(error) && (
               <Link href="/leaderboard?board=daily" className="btn-primary">
-                See today&apos;s leaderboard
+                Today&apos;s leaderboard
               </Link>
             )}
           </div>
@@ -211,38 +227,60 @@ export function SoloPlay({ game, variant, modes }: { game: GameLite; variant: Va
       )}
 
       {!error && !view && !summary && (
-        <div className="grid flex-1 place-items-center">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-white/10 border-t-brand-400" />
+        <div className="flex flex-1 flex-col items-center justify-center gap-4" aria-busy>
+          <div className="spinner" />
+          <span className="text-sm text-fg-3">Picking questions you haven&apos;t seen</span>
         </div>
       )}
 
       {view && !summary && (
-        <div className="flex flex-1 flex-col gap-5">
-          <TimerBar deadline={view.deadline} offset={offset} total={view.round.timeLimitSec} onZero={onTimeUp} stopped={!!reveal} />
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            <span className="chip">{view.round.modeLabel}</span>
-            <span className="chip">{"★".repeat(view.round.difficulty)}<span className="opacity-30">{"★".repeat(5 - view.round.difficulty)}</span></span>
-            {view.round.repeat && <span className="chip border-warn-400/40 text-warn-400">↺ Seen {view.round.repeat.daysAgo} days ago</span>}
+        <div className="flex flex-1 flex-col gap-6 pt-6">
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[13px] text-fg-3">
+            <span className="font-medium text-fg-2">{view.round.modeLabel}</span>
+            <span className="flex gap-[3px]" aria-label={`Difficulty ${view.round.difficulty} of 5`}>
+              {Array.from({ length: 5 }, (_, i) => (
+                <span key={i} className={`h-2.5 w-[3px] rounded-full ${i < view.round.difficulty ? "bg-fg-2" : "bg-surface-4"}`} />
+              ))}
+            </span>
+            {view.round.repeat && (
+              <span className="flex items-center gap-1">
+                <Icon name="refresh" size={13} />
+                Seen {view.round.repeat.daysAgo} days ago
+              </span>
+            )}
             {view.modifier && (
-              <motion.span initial={{ scale: 0.5, rotate: -6 }} animate={{ scale: 1, rotate: 0 }} className="chip border-hot-500/50 bg-hot-500/15 text-hot-500">
-                {view.modifier.icon} {view.modifier.label}
+              <motion.span initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="chip bg-accent-soft font-medium text-accent">
+                {view.modifier.label}
               </motion.span>
             )}
           </div>
           {view.notice && <div className="text-center text-sm text-warn-400">{view.notice}</div>}
           <AnimatePresence mode="wait">
-            <motion.div key={view.round.roundId} initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }} className="flex flex-col items-center gap-6">
+            <motion.div
+              key={view.round.roundId}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.26, ease: [0.2, 0.8, 0.2, 1] }}
+              className="flex flex-col items-center gap-6 pb-6"
+            >
               <RoundPlayer round={view.round} act={act} locked={!!reveal} reveal={reveal} resume={null} />
               {reveal && (
                 <>
                   <RevealPanel reveal={reveal} points={result?.points} correct={result?.correct} breakdown={result?.breakdown} timedOut={result?.timedOut} />
-                  <button autoFocus className="btn-primary px-10 py-3 text-lg" onClick={next} disabled={loadingNext}>
-                    {loadingNext ? "Loading…" : "Next →"}
+                  <button autoFocus className="btn-primary btn-lg min-w-48" onClick={next} disabled={loadingNext}>
+                    {loadingNext ? "Loading" : view.total && view.index + 1 >= view.total ? "See results" : "Next question"}
+                    <Icon name="arrow-right" size={17} />
                   </button>
                 </>
               )}
             </motion.div>
           </AnimatePresence>
+          {!reveal && (
+            <button onClick={quit} className="btn-quiet btn-sm mx-auto mt-auto sm:hidden">
+              End game
+            </button>
+          )}
         </div>
       )}
 
@@ -250,3 +288,5 @@ export function SoloPlay({ game, variant, modes }: { game: GameLite; variant: Va
     </div>
   );
 }
+
+const VARIANT_LABEL: Record<Variant, string> = { classic: "Classic", survival: "Survival", ranked: "Ranked", chaos: "Chaos", daily: "Daily" };

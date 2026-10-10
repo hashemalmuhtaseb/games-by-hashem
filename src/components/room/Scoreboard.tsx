@@ -17,7 +17,7 @@ export function Scoreboard({ state, me, showAnswered }: { state: RoomSnapshot; m
               <div className="text-xs font-bold uppercase" style={{ color: TEAM_COLORS[t.team] }}>
                 Team {t.name}
               </div>
-              <div className="display text-xl font-black text-white tabular-nums">{t.score}</div>
+              <div className="display text-xl font-semibold text-fg tabular-nums">{t.score}</div>
             </div>
           ))}
         </div>
@@ -29,26 +29,26 @@ export function Scoreboard({ state, me, showAnswered }: { state: RoomSnapshot; m
           ))}
         </ol>
       </LayoutGroup>
-      {spectators.length > 0 && <div className="text-xs text-ink-400">👀 {spectators.map((s) => s.name).join(", ")}</div>}
+      {spectators.length > 0 && <div className="text-xs text-fg-3">👀 {spectators.map((s) => s.name).join(", ")}</div>}
     </div>
   );
 }
 
 function PlayerRow({ p, rank, me, showAnswered }: { p: PublicPlayer; rank: number; me: boolean; showAnswered?: boolean }) {
   return (
-    <motion.li layout transition={{ type: "spring", stiffness: 500, damping: 40 }} className={`flex items-center gap-2.5 rounded-xl px-2.5 py-2 ${me ? "bg-brand-500/15 ring-1 ring-brand-500/40" : "bg-white/[0.03]"} ${p.eliminated ? "opacity-50" : ""}`}>
-      <span className="w-5 text-center text-xs font-bold text-ink-400">{rank}</span>
+    <motion.li layout transition={{ type: "spring", stiffness: 500, damping: 40 }} className={`flex items-center gap-2.5 rounded-xl px-2.5 py-2 ${me ? "bg-brand-500/15 ring-1 ring-brand-500/40" : "bg-surface-1"} ${p.eliminated ? "opacity-50" : ""}`}>
+      <span className="w-5 text-center text-xs font-bold text-fg-3">{rank}</span>
       <span className="relative">
         <Avatar avatar={p.avatar} color={p.team !== null ? TEAM_COLORS[p.team] : p.color} size={32} dim={!p.connected} />
         {showAnswered && p.answered && <span className="absolute -right-1 -bottom-1 grid h-4 w-4 place-items-center rounded-full bg-good-500 text-[10px] text-ink-950">✓</span>}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-semibold text-white">
+        <span className="block truncate text-sm font-semibold text-fg">
           {p.isHost && "👑 "}
           {p.name}
           {p.eliminated && " 💀"}
         </span>
-        <span className="flex gap-2 text-xs text-ink-400">
+        <span className="flex gap-2 text-xs text-fg-3">
           {p.streak >= 2 && <span className="text-orange-400">🔥{p.streak}</span>}
           {p.lives !== null && <span>{"❤️".repeat(Math.max(0, p.lives))}</span>}
           {!p.connected && <span>offline</span>}
@@ -60,7 +60,7 @@ function PlayerRow({ p, rank, me, showAnswered }: { p: PublicPlayer; rank: numbe
           {p.lastPoints}
         </motion.span>
       )}
-      <span className="display w-14 text-right font-bold text-white tabular-nums">{p.score}</span>
+      <span className="display w-14 text-right font-bold text-fg tabular-nums">{p.score}</span>
     </motion.li>
   );
 }

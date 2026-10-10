@@ -27,7 +27,7 @@ export function AdminDashboard({ role, username }: { role: "ADMIN" | "MODERATOR"
       <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="display text-3xl font-bold">Control room</h1>
-          <p className="text-ink-300 text-sm">
+          <p className="text-fg-2 text-sm">
             Signed in as <b>{username}</b> · {role.toLowerCase()}
             {!isAdmin && " · game settings and user roles are admin-only"}
           </p>
@@ -35,7 +35,7 @@ export function AdminDashboard({ role, username }: { role: "ADMIN" | "MODERATOR"
       </header>
       <nav className="mb-6 flex gap-1 overflow-x-auto pb-1">
         {TABS.map((t) => (
-          <button key={t.id} onClick={() => setTab(t.id)} className={`rounded-xl px-3.5 py-2 text-sm font-semibold whitespace-nowrap transition ${tab === t.id ? "bg-white/12 text-white" : "text-ink-300 hover:bg-white/5 hover:text-white"}`}>
+          <button key={t.id} onClick={() => setTab(t.id)} className={`rounded-xl px-3.5 py-2 text-sm font-semibold whitespace-nowrap transition ${tab === t.id ? "bg-white/12 text-fg" : "text-fg-2 hover:bg-surface-2 hover:text-fg"}`}>
             {t.label}
           </button>
         ))}

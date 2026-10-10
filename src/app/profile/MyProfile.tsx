@@ -33,7 +33,7 @@ export function MyProfile() {
       setBio(me.bio);
     }
   }, [me]);
-  if (!me) return <div className="mx-auto max-w-5xl px-4 py-10"><div className="h-40 animate-pulse rounded-2xl bg-white/5" /></div>;
+  if (!me) return <div className="mx-auto max-w-5xl px-4 py-10"><div className="h-40 animate-pulse rounded-2xl bg-surface-2" /></div>;
   const patch = async (body: Record<string, unknown>) => {
     try {
       await api("/api/me", { method: "PATCH", body });
@@ -50,8 +50,8 @@ export function MyProfile() {
       {me.isGuest && (
         <div className="card mb-6 flex flex-col items-center justify-between gap-3 border-brand-500/30 p-5 sm:flex-row">
           <div>
-            <div className="font-semibold text-white">You&apos;re playing as a guest</div>
-            <div className="text-sm text-ink-400">Create a free account to keep your progress across devices, add friends and appear by name on leaderboards.</div>
+            <div className="font-semibold text-fg">You&apos;re playing as a guest</div>
+            <div className="text-sm text-fg-3">Create a free account to keep your progress across devices, add friends and appear by name on leaderboards.</div>
           </div>
           <Link href="/login" className="btn-primary shrink-0">
             Create account
@@ -68,7 +68,7 @@ export function MyProfile() {
           </Link>
           {user ? (
             <button
-              className="text-xs text-ink-400 hover:text-white"
+              className="text-xs text-fg-3 hover:text-fg"
               onClick={async () => {
                 await api("/api/auth/logout", { method: "POST" });
                 await refresh();
@@ -77,7 +77,7 @@ export function MyProfile() {
               Sign out
             </button>
           ) : (
-            <Link href="/login" className="text-center text-xs text-ink-400 hover:text-white">
+            <Link href="/login" className="text-center text-xs text-fg-3 hover:text-fg">
               Sign in
             </Link>
           )}
@@ -140,30 +140,30 @@ export function MyProfile() {
             <button className="btn-ghost">Add</button>
           </form>
         ) : (
-          <p className="mb-3 text-sm text-ink-400">Create an account to add friends.</p>
+          <p className="mb-3 text-sm text-fg-3">Create an account to add friends.</p>
         )}
-        {friendMsg && <p className="mb-3 text-sm text-ink-300">{friendMsg}</p>}
+        {friendMsg && <p className="mb-3 text-sm text-fg-2">{friendMsg}</p>}
         {friends?.incoming.map((f) => (
           <div key={f.id} className="mb-2 flex items-center gap-3 rounded-xl bg-brand-500/10 px-3 py-2">
             <Avatar avatar={f.player.avatar} color={f.player.color} size={30} />
-            <span className="flex-1 text-white">{f.player.displayName} wants to be friends</span>
+            <span className="flex-1 text-fg">{f.player.displayName} wants to be friends</span>
             <button className="btn-primary px-3 py-1 text-sm" onClick={() => void api("/api/friends", { method: "PATCH", body: { id: f.id, action: "accept" } }).then(loadFriends)}>
               Accept
             </button>
-            <button className="text-sm text-ink-400" onClick={() => void api("/api/friends", { method: "PATCH", body: { id: f.id, action: "remove" } }).then(loadFriends)}>
+            <button className="text-sm text-fg-3" onClick={() => void api("/api/friends", { method: "PATCH", body: { id: f.id, action: "remove" } }).then(loadFriends)}>
               Decline
             </button>
           </div>
         ))}
         <div className="grid gap-2 sm:grid-cols-2">
           {friends?.friends.map((f) => (
-            <div key={f.id} className="flex items-center gap-3 rounded-xl bg-white/[0.03] px-3 py-2">
+            <div key={f.id} className="flex items-center gap-3 rounded-xl bg-surface-1 px-3 py-2">
               <Avatar avatar={f.player.avatar} color={f.player.color} size={30} />
-              <Link href={`/u/${f.player.id}`} className="flex-1 text-white hover:underline">
+              <Link href={`/u/${f.player.id}`} className="flex-1 text-fg hover:underline">
                 {f.player.displayName}
               </Link>
-              <span className="text-xs text-ink-400">{Date.now() - new Date(f.player.lastSeenAt).getTime() < 300_000 ? "🟢 online" : ""}</span>
-              <button className="text-xs text-ink-400 hover:text-bad-400" onClick={() => void api("/api/friends", { method: "PATCH", body: { id: f.id, action: "remove" } }).then(loadFriends)}>
+              <span className="text-xs text-fg-3">{Date.now() - new Date(f.player.lastSeenAt).getTime() < 300_000 ? "🟢 online" : ""}</span>
+              <button className="text-xs text-fg-3 hover:text-bad-400" onClick={() => void api("/api/friends", { method: "PATCH", body: { id: f.id, action: "remove" } }).then(loadFriends)}>
                 Remove
               </button>
             </div>
@@ -171,12 +171,12 @@ export function MyProfile() {
           {friends?.outgoing.map((f) => (
             <div key={f.id} className="flex items-center gap-3 rounded-xl bg-white/[0.02] px-3 py-2 opacity-60">
               <Avatar avatar={f.player.avatar} color={f.player.color} size={30} />
-              <span className="flex-1 text-white">{f.player.displayName}</span>
-              <span className="text-xs text-ink-400">pending</span>
+              <span className="flex-1 text-fg">{f.player.displayName}</span>
+              <span className="text-xs text-fg-3">pending</span>
             </div>
           ))}
         </div>
-        {friends && !friends.friends.length && !friends.incoming.length && !friends.outgoing.length && user && <p className="text-sm text-ink-400">No friends yet. Add someone by username, or share a room code.</p>}
+        {friends && !friends.friends.length && !friends.incoming.length && !friends.outgoing.length && user && <p className="text-sm text-fg-3">No friends yet. Add someone by username, or share a room code.</p>}
       </div>
     </div>
   );

@@ -3,12 +3,13 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { GameInfo } from "@/engine/registry";
 import { emit } from "@/client/socket";
+import { Icon } from "@/components/ui/Icon";
 
 const VARIANTS = [
-  { id: "classic", label: "Classic", icon: "🎯", desc: "A standard game with adaptive difficulty." },
-  { id: "survival", label: "Survival", icon: "❤️", desc: "Three lives. Gets harder every round. How far can you go?" },
-  { id: "ranked", label: "Ranked", icon: "🏆", desc: "10 standard rounds that move your rating." },
-  { id: "chaos", label: "Chaos", icon: "🌀", desc: "Random twists: double points, half time, jackpots, mystery rounds." },
+  { id: "classic", label: "Classic", desc: "A standard game. Difficulty adapts to you." },
+  { id: "survival", label: "Survival", desc: "Three lives, harder every round. How far can you go?" },
+  { id: "ranked", label: "Ranked", desc: "Ten standard rounds that move your rating." },
+  { id: "chaos", label: "Chaos", desc: "Double points, half time, jackpots and mystery rounds." },
 ] as const;
 
 export function Launcher({ game }: { game: GameInfo }) {
@@ -18,6 +19,7 @@ export function Launcher({ game }: { game: GameInfo }) {
   const [modes, setModes] = useState<string[]>([]);
   const [variant, setVariant] = useState<(typeof VARIANTS)[number]["id"]>("classic");
   const [hosting, setHosting] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const toggle = (id: string) => setModes((m) => (m.includes(id) ? m.filter((x) => x !== id) : [...m, id]));
   const qs = () => {
@@ -25,53 +27,73 @@ export function Launcher({ game }: { game: GameInfo }) {
     if (modes.length && variant !== "ranked") p.set("modes", modes.join(","));
     return p.toString();
   };
+  const party = game.multiplayer && !game.soloOnly;
   return (
-    <div className="card flex flex-col gap-6 p-6">
+    <section aria-label="Start a game" className="card animate-rise flex flex-col [animation-delay:100ms]">
       {available.length > 1 && (
-        <div>
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="label">Modes</h2>
-            <span className="text-xs text-ink-400">{modes.length ? `${modes.length} selected` : "All modes mixed"}</span>
+        <div className="p-6 pb-5">
+          <div className="mb-3 flex items-baseline justify-between">
+            <h2 className="text-[15px] font-semibold text-fg">Modes</h2>
+            <span className="text-sm text-fg-3">
+              {modes.length ? (
+                <button className="link text-fg-2" onClick={() => setModes([])}>
+                  {modes.length} selected · clear
+                </button>
+              ) : (
+                "All mixed"
+              )}
+            </span>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5">
             {available.map((m) => (
-              <button
-                key={m.id}
-                title={m.description}
-                onClick={() => toggle(m.id)}
-                className={`rounded-xl border px-3 py-2 text-left text-sm transition ${modes.includes(m.id) ? "border-brand-400 bg-brand-500/20 text-white" : "border-white/10 bg-white/[0.03] text-ink-300 hover:border-white/25 hover:text-white"}`}
-              >
-                <span className="font-semibold">{m.label}</span>
+              <button key={m.id} title={m.description} aria-pressed={modes.includes(m.id)} onClick={() => toggle(m.id)} className="option rounded-[var(--radius-sm)] px-3 py-1.5 text-sm font-medium">
+                {m.label}
               </button>
             ))}
           </div>
           {unavailable.length > 0 && (
-            <p className="mt-2 text-xs text-ink-400">
-              Not available yet: {unavailable.map((m) => m.label).join(", ")} — these need a licensed media source and are switched off rather than faked.
+            <p className="mt-3 text-xs leading-relaxed text-fg-3">
+              {unavailable.map((m) => m.label).join(", ")} {unavailable.length === 1 ? "needs" : "need"} a licensed media source, so {unavailable.length === 1 ? "it is" : "they are"} switched off rather than faked.
             </p>
           )}
         </div>
       )}
-      <div>
-        <h2 className="label mb-2">Solo variant</h2>
-        <div className="grid grid-cols-2 gap-2">
-          {VARIANTS.map((v) => (
-            <button key={v.id} onClick={() => setVariant(v.id)} className={`rounded-xl border p-3 text-left transition ${variant === v.id ? "border-brand-400 bg-brand-500/15" : "border-white/10 bg-white/[0.03] hover:border-white/25"}`}>
-              <div className="font-semibold text-white">
-                {v.icon} {v.label}
-              </div>
-              <div className="mt-0.5 text-xs text-ink-400">{v.desc}</div>
-            </button>
-          ))}
+
+      <div className={`p-6 ${available.length > 1 ? "border-t border-line" : ""}`}>
+        <h2 className="mb-3 text-[15px] font-semibold text-fg">Solo</h2>
+        <div role="radiogroup" aria-label="Solo variant" className="grid gap-1.5 sm:grid-cols-2">
+          {VARIANTS.map((v) => {
+            const on = variant === v.id;
+            return (
+              <button key={v.id} role="radio" aria-checked={on} onClick={() => setVariant(v.id)} className="option flex gap-3 p-3.5">
+                <span className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full transition-colors ${on ? "bg-accent" : "shadow-[inset_0_0_0_1.5px_var(--color-fg-4)]"}`}>
+                  {on && <span className="h-1.5 w-1.5 rounded-full bg-accent-ink" />}
+                </span>
+                <span>
+                  <span className="block font-semibold text-fg">{v.label}</span>
+                  <span className="mt-0.5 block text-[13px] leading-snug text-fg-3">{v.desc}</span>
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <button className="btn-primary flex-1 py-3.5 text-lg" onClick={() => router.push(`/play/${game.slug}?${qs()}`)}>
-          ▶ Play solo
+
+      <div className="mt-auto flex flex-col gap-2 border-t border-line p-6 sm:flex-row">
+        <button
+          className="btn-primary btn-lg flex-1"
+          disabled={starting}
+          onClick={() => {
+            setStarting(true);
+            router.push(`/play/${game.slug}?${qs()}`);
+          }}
+        >
+          <Icon name="play" size={15} />
+          {starting ? "Starting…" : "Play solo"}
         </button>
-        {game.multiplayer && !game.soloOnly && (
+        {party && (
           <button
-            className="btn-ghost flex-1 py-3.5 text-lg"
+            className="btn-ghost btn-lg flex-1"
             disabled={hosting}
             onClick={async () => {
               setHosting(true);
@@ -83,11 +105,16 @@ export function Launcher({ game }: { game: GameInfo }) {
               } else router.push(`/room/${r.code}`);
             }}
           >
-            {hosting ? "Creating…" : "🥳 Host a room"}
+            <Icon name="users" size={17} />
+            {hosting ? "Creating room…" : "Host a room"}
           </button>
         )}
       </div>
-      {err && <p className="text-sm text-bad-400">{err}</p>}
-    </div>
+      {err && (
+        <p role="alert" className="px-6 pb-5 text-sm text-bad-400">
+          {err}
+        </p>
+      )}
+    </section>
   );
 }

@@ -39,13 +39,13 @@ export function Generate({ onReview }: { onReview: () => void }) {
       <section className="card space-y-4 p-5">
         <div>
           <h2 className="font-semibold">Generate questions</h2>
-          <p className="text-ink-300 mt-1 text-sm">New questions feed the “Community picks” mode in Trivia Roulette and Quickfire. Every draft passes schema, giveaway, language and near-duplicate checks. Dataset templates are true by construction and can publish directly; AI drafts always go to the review queue.</p>
+          <p className="text-fg-2 mt-1 text-sm">New questions feed the “Community picks” mode in Trivia Roulette and Quickfire. Every draft passes schema, giveaway, language and near-duplicate checks. Dataset templates are true by construction and can publish directly; AI drafts always go to the review queue.</p>
         </div>
         <div className="grid gap-2 md:grid-cols-3">
           {data?.providers.map((x) => (
-            <button key={x.id} disabled={!!x.unavailable} onClick={() => { setProvider(x.id); setTopic(x.topics[0]); }} className={`rounded-xl border p-3 text-left transition ${provider === x.id ? "border-brand-500 bg-brand-500/10" : "border-white/10 hover:bg-white/5"} disabled:opacity-50`}>
+            <button key={x.id} disabled={!!x.unavailable} onClick={() => { setProvider(x.id); setTopic(x.topics[0]); }} className={`rounded-xl border p-3 text-left transition ${provider === x.id ? "border-brand-500 bg-brand-500/10" : "border-line hover:bg-surface-2"} disabled:opacity-50`}>
               <div className="font-semibold">{x.label}</div>
-              <div className="text-ink-400 mt-0.5 text-xs">{x.unavailable ? `Off: ${x.unavailable}` : x.verified ? "Verified facts · no API key needed" : "Unverified · human review required"}</div>
+              <div className="text-fg-3 mt-0.5 text-xs">{x.unavailable ? `Off: ${x.unavailable}` : x.verified ? "Verified facts · no API key needed" : "Unverified · human review required"}</div>
             </button>
           ))}
         </div>
@@ -78,23 +78,23 @@ export function Generate({ onReview }: { onReview: () => void }) {
               <button className="flex w-full flex-wrap items-center gap-3 text-left text-sm" onClick={() => setOpen(open === j.id ? null : j.id)}>
                 <span className={`font-bold ${j.status === "SUCCEEDED" ? "text-good-400" : j.status === "FAILED" ? "text-bad-400" : "text-warn-400"}`}>{j.status.toLowerCase()}</span>
                 <span>{j.provider}</span>
-                <span className="text-ink-300">{j.params.topic} × {j.params.count}</span>
+                <span className="text-fg-2">{j.params.topic} × {j.params.count}</span>
                 <span className="text-good-400">{j.accepted} accepted</span>
                 <span className="text-bad-400">{j.rejected} rejected</span>
-                <span className="text-ink-400 ml-auto">{ago(j.createdAt)}</span>
+                <span className="text-fg-3 ml-auto">{ago(j.createdAt)}</span>
               </button>
               {j.error && <p className="text-bad-400 mt-2 text-sm">{j.error}</p>}
               {open === j.id && (
                 <ul className="mt-3 space-y-1 text-sm">
                   {j.log.map((l, i) => (
-                    <li key={i} className={l.ok ? "" : "text-ink-400"}>{l.ok ? "✓" : "✗"} {l.question}{!l.ok && <span className="text-bad-400"> — {l.reasons.join("; ")}</span>}</li>
+                    <li key={i} className={l.ok ? "" : "text-fg-3"}>{l.ok ? "✓" : "✗"} {l.question}{!l.ok && <span className="text-bad-400"> — {l.reasons.join("; ")}</span>}</li>
                   ))}
                   {j.accepted > 0 && !j.params.autoPublish && <li><button className="text-brand-400 mt-1 font-semibold" onClick={onReview}>Review the accepted drafts →</button></li>}
                 </ul>
               )}
             </li>
           ))}
-          {data && data.jobs.length === 0 && <li className="card text-ink-300 p-5 text-center text-sm">No jobs yet.</li>}
+          {data && data.jobs.length === 0 && <li className="card text-fg-2 p-5 text-center text-sm">No jobs yet.</li>}
         </ul>
       </section>
     </div>

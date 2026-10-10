@@ -33,11 +33,11 @@ export function Reports() {
     <div className="space-y-5">
       <div className="flex items-center gap-2">
         {["OPEN", "RESOLVED", "DISMISSED"].map((s) => (
-          <button key={s} onClick={() => setStatus(s)} className={`chip ${status === s ? "bg-white/15 text-white" : ""}`}>{s.toLowerCase()}</button>
+          <button key={s} onClick={() => setStatus(s)} className={`chip ${status === s ? "bg-surface-3 text-fg" : ""}`}>{s.toLowerCase()}</button>
         ))}
-        <span className="text-ink-400 ml-auto text-xs">A question reported by three different players is hidden automatically until you decide.</span>
+        <span className="text-fg-3 ml-auto text-xs">A question reported by three different players is hidden automatically until you decide.</span>
       </div>
-      {msg && <p className="rounded-xl bg-white/5 px-3 py-2 text-sm">{msg}</p>}
+      {msg && <p className="rounded-xl bg-surface-2 px-3 py-2 text-sm">{msg}</p>}
       {error && <p className="text-bad-400">{error}</p>}
       <section>
         <h2 className="mb-2 font-semibold">Content reports</h2>
@@ -45,7 +45,7 @@ export function Reports() {
           {data?.content.map((r) => (
             <li key={r.id} className="card flex flex-wrap items-start gap-3 p-4">
               <div className="min-w-0 flex-1">
-                <div className="text-ink-400 flex flex-wrap gap-x-3 text-xs">
+                <div className="text-fg-3 flex flex-wrap gap-x-3 text-xs">
                   <span className="font-mono">{r.contentKey}</span>
                   {r.question && <span>{r.question.gameSlug} · {r.question.topic}</span>}
                   {r.question && <span className="text-bad-400">🚩 {r.question.reportCount}</span>}
@@ -53,7 +53,7 @@ export function Reports() {
                   <span>{ago(r.createdAt)} by {name(r.playerId)}</span>
                 </div>
                 <p className="mt-1.5">“{r.reason}”</p>
-                {r.question?.prompt.question && <p className="text-ink-300 mt-1 text-sm">Q: {r.question.prompt.question} — ✓ {r.question.prompt.correct}</p>}
+                {r.question?.prompt.question && <p className="text-fg-2 mt-1 text-sm">Q: {r.question.prompt.question} — ✓ {r.question.prompt.correct}</p>}
               </div>
               {status === "OPEN" && (
                 <div className="flex gap-1.5">
@@ -64,7 +64,7 @@ export function Reports() {
               )}
             </li>
           ))}
-          {data && data.content.length === 0 && <li className="card text-ink-300 p-5 text-center text-sm">No {status.toLowerCase()} content reports.</li>}
+          {data && data.content.length === 0 && <li className="card text-fg-2 p-5 text-center text-sm">No {status.toLowerCase()} content reports.</li>}
         </ul>
       </section>
       <section>
@@ -73,9 +73,9 @@ export function Reports() {
           {data?.users.map((r) => (
             <li key={r.id} className="card flex flex-wrap items-start gap-3 p-4">
               <div className="min-w-0 flex-1">
-                <div className="text-ink-400 text-xs">{ago(r.createdAt)} · {name(r.reporterPlayerId)} reported <b className="text-ink-100">{name(r.targetPlayerId)}</b>{who(r.targetPlayerId)?.user?.bannedAt && " · already banned"}</div>
+                <div className="text-fg-3 text-xs">{ago(r.createdAt)} · {name(r.reporterPlayerId)} reported <b className="text-fg">{name(r.targetPlayerId)}</b>{who(r.targetPlayerId)?.user?.bannedAt && " · already banned"}</div>
                 <p className="mt-1.5">“{r.reason}”</p>
-                {r.context && <p className="text-ink-300 mt-1 text-sm">{r.context}</p>}
+                {r.context && <p className="text-fg-2 mt-1 text-sm">{r.context}</p>}
               </div>
               {status === "OPEN" && (
                 <div className="flex gap-1.5">
@@ -85,7 +85,7 @@ export function Reports() {
               )}
             </li>
           ))}
-          {data && data.users.length === 0 && <li className="card text-ink-300 p-5 text-center text-sm">No {status.toLowerCase()} player reports. Ban accounts from the Users tab.</li>}
+          {data && data.users.length === 0 && <li className="card text-fg-2 p-5 text-center text-sm">No {status.toLowerCase()} player reports. Ban accounts from the Users tab.</li>}
         </ul>
       </section>
     </div>

@@ -1,7 +1,11 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { catalog } from "@/server/catalog";
 import { gameConfig } from "@/server/game-config";
+import { familyLabel } from "@/components/GameCard";
+import { GameGlyph, toneOf } from "@/components/ui/GameGlyph";
+import { Icon } from "@/components/ui/Icon";
 import { Launcher } from "./Launcher";
 
 export const dynamic = "force-dynamic";
@@ -16,37 +20,52 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const g = catalog().find((x) => x.slug === slug);
   if (!g || !(await gameConfig(slug)).enabled) notFound();
+  const tone = toneOf(g.slug, g.group);
+  const facts = [
+    `${g.rounds} rounds`,
+    `${g.timeLimitSec}s a round`,
+    `${g.questionCount.toLocaleString()} questions`,
+    g.multiplayer && !g.soloOnly ? "Solo or 2–12 players" : "Solo",
+  ];
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10">
-      <div className="relative overflow-hidden rounded-3xl border border-white/[0.07] p-8 sm:p-10" style={{ background: `linear-gradient(135deg, ${g.accent[0]}22, ${g.accent[1]}11 60%, transparent)` }}>
-        <div className="pointer-events-none absolute -top-20 -right-20 h-72 w-72 rounded-full opacity-40 blur-3xl" style={{ background: `linear-gradient(135deg, ${g.accent[0]}, ${g.accent[1]})` }} />
-        <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center">
-          <span className="grid h-24 w-24 shrink-0 place-items-center rounded-3xl bg-ink-900/60 text-6xl shadow-2xl ring-1 ring-white/10">{g.icon}</span>
-          <div>
-            <h1 className="display text-4xl font-black text-white sm:text-5xl">{g.name}</h1>
-            <p className="mt-2 max-w-2xl text-lg text-ink-300">{g.short}</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <span className="chip">{g.rounds} rounds</span>
-              <span className="chip">~{g.timeLimitSec}s per round</span>
-              <span className="chip">{g.questionCount.toLocaleString()} questions</span>
-              {g.multiplayer && !g.soloOnly ? <span className="chip">👥 2–12 players</span> : <span className="chip">👤 Solo</span>}
-              {g.original && <span className="chip border-brand-500/40 text-brand-400">PartyVerse original</span>}
-            </div>
+    <div className="mx-auto max-w-6xl px-5 pt-6 pb-24 sm:px-8 sm:pt-8">
+      <Link href="/#games" className="btn-quiet btn-sm -ml-3 text-fg-3">
+        <Icon name="arrow-left" size={16} />
+        Library
+      </Link>
+
+      <header className="animate-rise mt-8 grid gap-6 sm:grid-cols-[auto_1fr] sm:items-end sm:gap-8">
+        <GameGlyph slug={g.slug} group={g.group} name={g.name} size={88} />
+        <div>
+          <div className="overline" style={{ color: tone }}>
+            {familyLabel(g)}
+            {g.original ? " · PartyVerse original" : ""}
           </div>
+          <h1 className="serif mt-3 text-[44px] leading-[1.02] text-fg sm:text-[56px]">{g.name}</h1>
+          <p className="mt-3 max-w-2xl text-[17px] leading-relaxed text-fg-2">{g.short}</p>
         </div>
-      </div>
-      <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_1.4fr]">
-        <div className="card p-6">
-          <h2 className="label mb-3">How to play</h2>
-          <ul className="space-y-2.5">
+      </header>
+
+      <ul className="num mt-8 flex flex-wrap gap-x-6 gap-y-2 border-y border-line py-4 text-sm text-fg-2">
+        {facts.map((f) => (
+          <li key={f}>{f}</li>
+        ))}
+      </ul>
+
+      <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] lg:gap-16">
+        <section aria-labelledby="how" className="animate-rise [animation-delay:60ms]">
+          <h2 id="how" className="text-[15px] font-semibold text-fg">
+            How it plays
+          </h2>
+          <ol className="mt-5 flex flex-col">
             {g.rules.map((r, i) => (
-              <li key={i} className="flex gap-3 text-ink-100">
-                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand-500/25 text-xs font-bold text-brand-400">{i + 1}</span>
-                {r}
+              <li key={i} className="flex gap-4 border-t border-line py-4 first:border-t-0 first:pt-0">
+                <span className="num w-5 shrink-0 pt-px font-mono text-xs text-fg-3">{String(i + 1).padStart(2, "0")}</span>
+                <span className="leading-relaxed text-fg-2">{r}</span>
               </li>
             ))}
-          </ul>
-        </div>
+          </ol>
+        </section>
         <Launcher game={g} />
       </div>
     </div>

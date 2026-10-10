@@ -3,6 +3,7 @@ import { AnimatePresence, motion, Reorder } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Action, MediaRef, OptionPublic, PointsBreakdown, PublicRound, RevealPayload, SuggestSet } from "@/engine/types";
 import { play } from "@/client/sound";
+import { Icon } from "@/components/ui/Icon";
 import { MediaView } from "./Media";
 
 export interface ActResponse {
@@ -48,10 +49,10 @@ function useToast() {
     return () => clearTimeout(t);
   }, [msg]);
   const node = (
-    <div className="pointer-events-none h-7 text-center">
+    <div className="pointer-events-none h-6 text-center" aria-live="polite">
       <AnimatePresence mode="wait">
         {msg && (
-          <motion.div key={msg.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className={`text-sm font-semibold ${msg.tone === "bad" ? "text-bad-400" : msg.tone === "good" ? "text-good-400" : "text-ink-300"}`}>
+          <motion.div key={msg.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className={`text-sm font-medium ${msg.tone === "bad" ? "text-bad-400" : msg.tone === "good" ? "text-good-400" : "text-fg-2"}`}>
             {msg.text}
           </motion.div>
         )}
@@ -63,34 +64,36 @@ function useToast() {
 
 function OptionButton({ o, i, state, onClick, disabled }: { o: OptionPublic; i: number; state: "idle" | "picked" | "right" | "wrong" | "missed"; onClick: () => void; disabled: boolean }) {
   const styles = {
-    idle: "border-white/10 bg-white/[0.04] hover:bg-white/[0.09] hover:border-brand-400/50",
-    picked: "border-brand-400 bg-brand-500/20",
-    right: "border-good-400 bg-good-500/20 text-white",
-    wrong: "border-bad-400 bg-bad-500/20 animate-shake",
-    missed: "border-good-400/70 bg-good-500/10",
+    idle: "bg-surface-1 shadow-[inset_0_0_0_1px_var(--color-line)] enabled:hover:bg-surface-2 enabled:hover:shadow-[inset_0_0_0_1px_var(--color-line-strong)]",
+    picked: "bg-accent-soft shadow-[inset_0_0_0_1.5px_var(--color-accent)]",
+    right: "bg-[color-mix(in_oklab,var(--color-good-500)_16%,var(--color-surface-1))] shadow-[inset_0_0_0_1.5px_var(--color-good-400)]",
+    wrong: "bg-[color-mix(in_oklab,var(--color-bad-500)_14%,var(--color-surface-1))] shadow-[inset_0_0_0_1.5px_var(--color-bad-400)] animate-shake",
+    missed: "bg-surface-1 shadow-[inset_0_0_0_1.5px_color-mix(in_oklab,var(--color-good-400)_60%,transparent)]",
   }[state];
+  const faded = state === "idle" && disabled;
   return (
     <motion.button
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: i * 0.04 }}
-      whileTap={disabled ? undefined : { scale: 0.97 }}
+      transition={{ delay: i * 0.03, duration: 0.24, ease: [0.2, 0.8, 0.2, 1] }}
+      whileTap={disabled ? undefined : { scale: 0.985 }}
       disabled={disabled}
       onClick={onClick}
-      className={`group relative flex min-h-16 w-full items-center gap-3 rounded-2xl border-2 px-4 py-3 text-left font-semibold transition-colors disabled:cursor-default ${styles}`}
+      className={`group relative flex min-h-[60px] w-full items-center gap-3.5 rounded-[var(--radius-md)] px-4 py-3 text-left transition-[background-color,box-shadow,opacity] duration-150 disabled:cursor-default ${styles} ${faded ? "opacity-50" : ""}`}
     >
-      <kbd className="hidden h-6 w-6 shrink-0 place-items-center rounded-md bg-white/10 text-xs text-ink-300 sm:grid">{i + 1}</kbd>
+      <span className="kbd hidden sm:inline-grid">{i + 1}</span>
       {o.media && (
         <span className="shrink-0">
           <MediaView m={o.media} size="sm" />
         </span>
       )}
-      <span className="flex-1">
-        <span className="block text-base leading-snug text-white sm:text-lg">{o.label}</span>
-        {o.sub && <span className="block text-xs font-medium text-ink-400">{o.sub}</span>}
+      <span className="min-w-0 flex-1">
+        <span className="block text-[16px] leading-snug font-medium text-fg sm:text-[17px]">{o.label}</span>
+        {o.sub && <span className="num mt-0.5 block text-[13px] text-fg-3">{o.sub}</span>}
       </span>
-      {state === "right" && <span className="text-xl">✅</span>}
-      {state === "wrong" && <span className="text-xl">❌</span>}
+      {state === "right" && <Icon name="check" size={20} strokeWidth={2.25} className="text-good-400" />}
+      {state === "missed" && <Icon name="check" size={20} strokeWidth={2} className="text-good-400/70" />}
+      {state === "wrong" && <Icon name="x" size={20} strokeWidth={2.25} className="text-bad-400" />}
     </motion.button>
   );
 }
@@ -107,7 +110,7 @@ function OptionGrid({ options, onPick, picked, correctId, locked, wrongIds }: { 
     return () => window.removeEventListener("keydown", h);
   }, [options, onPick, locked]);
   return (
-    <div className={`grid w-full gap-3 ${options.length > 4 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+    <div className={`grid w-full max-w-3xl gap-2 sm:gap-2.5 ${options.length > 4 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
       {options.map((o, i) => {
         let st: "idle" | "picked" | "right" | "wrong" | "missed" = "idle";
         if (correctId) {
@@ -197,7 +200,7 @@ function TextAnswer({ placeholder, onSubmit, disabled, shake, autoFocus = true, 
   };
   return (
     <form
-      className={`relative flex w-full max-w-xl gap-2 ${shake ? "animate-shake" : ""}`}
+      className={`relative flex w-full max-w-xl gap-2 rounded-[var(--radius-md)] bg-surface-1 p-1.5 shadow-[inset_0_0_0_1px_var(--color-line-strong)] transition-shadow duration-150 focus-within:shadow-[inset_0_0_0_1px_var(--color-accent-line),0_0_0_4px_rgb(244_207_61/0.08)] ${shake ? "animate-shake" : ""}`}
       key={shake}
       onSubmit={(e) => {
         e.preventDefault();
@@ -206,7 +209,7 @@ function TextAnswer({ placeholder, onSubmit, disabled, shake, autoFocus = true, 
     >
       <input
         ref={ref}
-        className="input text-lg"
+        className="min-w-0 flex-1 bg-transparent px-3 text-[17px] text-fg outline-none placeholder:text-fg-3 disabled:opacity-50"
         value={v}
         onChange={(e) => {
           setV(e.target.value);
@@ -237,11 +240,12 @@ function TextAnswer({ placeholder, onSubmit, disabled, shake, autoFocus = true, 
         aria-expanded={matches.length > 0}
         aria-autocomplete="list"
       />
-      <button className="btn-primary px-6" disabled={disabled || !v.trim()}>
-        Go
+      <button className="btn-primary shrink-0 px-5" disabled={disabled || !v.trim()} aria-label="Submit answer">
+        <span className="hidden sm:inline">Submit</span>
+        <Icon name="arrow-right" size={18} className="sm:hidden" />
       </button>
       {matches.length > 0 && !disabled && (
-        <ul role="listbox" className="absolute top-full right-0 left-0 z-30 mt-1.5 overflow-hidden rounded-xl border border-white/10 bg-ink-900/95 shadow-2xl backdrop-blur">
+        <ul role="listbox" className="popover absolute top-full right-0 left-0 z-30 mt-2 overflow-hidden p-1">
           {matches.map((m, i) => (
             <li key={m} role="option" aria-selected={i === hi}>
               <button
@@ -250,9 +254,10 @@ function TextAnswer({ placeholder, onSubmit, disabled, shake, autoFocus = true, 
                 onMouseDown={(e) => e.preventDefault()}
                 onMouseEnter={() => setHi(i)}
                 onClick={() => submit(m)}
-                className={`block w-full px-4 py-2.5 text-left text-base transition ${i === hi ? "bg-brand-500/25 text-white" : "text-ink-100 hover:bg-white/5"}`}
+                className={`flex w-full items-center justify-between rounded-[var(--radius-sm)] px-3 py-2.5 text-left text-[15px] transition-colors duration-100 ${i === hi ? "bg-surface-4 text-fg" : "text-fg-2"}`}
               >
                 {m}
+                {i === hi && <span className="kbd">↵</span>}
               </button>
             </li>
           ))}
@@ -314,15 +319,15 @@ function TextKind({ round, act, locked, resume }: Ctl) {
       {wrong.length > 0 && (
         <div className="flex flex-wrap justify-center gap-2">
           {wrong.map((w, i) => (
-            <span key={i} className="chip border-bad-500/30 text-bad-400 line-through">
+            <span key={i} className="chip text-fg-3 line-through decoration-bad-400/70">
               {w}
             </span>
           ))}
         </div>
       )}
       {!done && (
-        <button className="text-sm text-ink-400 hover:text-white" onClick={() => act({ type: "give-up" })}>
-          I don&apos;t know — skip
+        <button className="btn-quiet btn-sm" onClick={() => act({ type: "give-up" })}>
+          Skip this one
         </button>
       )}
     </div>
@@ -350,9 +355,9 @@ function NumberKind({ round, act, locked, resume }: Ctl) {
         await act({ type: "answer", value: val });
       }}
     >
-      <div className="display text-5xl font-bold text-white tabular-nums">
+      <div className="display num text-[56px] leading-none font-semibold text-fg">
         {val.toLocaleString()}
-        {spec.unit && <span className="ml-2 text-2xl text-ink-400">{spec.unit}</span>}
+        {spec.unit && <span className="ml-2 text-xl font-medium text-fg-3">{spec.unit}</span>}
       </div>
       <input
         type="range"
@@ -365,15 +370,17 @@ function NumberKind({ round, act, locked, resume }: Ctl) {
           setVal(n);
           setText(String(n));
         }}
-        className="h-3 w-full cursor-pointer accent-brand-500"
+        className="range w-full"
+        aria-label="Your estimate"
       />
-      <div className="flex w-full justify-between text-xs text-ink-400">
+      <div className="num -mt-1 flex w-full justify-between font-mono text-xs text-fg-3">
         <span>{spec.min.toLocaleString()}</span>
         <span>{spec.max.toLocaleString()}</span>
       </div>
       <div className="flex w-full gap-2">
         <input
-          className="input text-center text-lg tabular-nums"
+          className="input num min-h-12 text-center text-lg"
+          aria-label="Type an exact number"
           inputMode="numeric"
           value={text}
           disabled={done}
@@ -383,7 +390,7 @@ function NumberKind({ round, act, locked, resume }: Ctl) {
             if (Number.isFinite(n) && n >= spec.min && n <= spec.max) setVal(n);
           }}
         />
-        <button className="btn-primary px-8" disabled={done}>
+        <button className="btn-primary min-h-12 px-8" disabled={done}>
           Lock in
         </button>
       </div>
@@ -417,20 +424,21 @@ function CluesKind({ round, act, locked, resume }: Ctl) {
       <ol className="w-full max-w-xl space-y-2">
         <AnimatePresence initial={false}>
           {clues.map((c, i) => (
-            <motion.li key={i} initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} className="flex gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">
-              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand-500/30 text-xs font-bold text-brand-400">{i + 1}</span>
-              <span className={`font-medium whitespace-pre-line text-white ${/_ /.test(c) ? "font-mono tracking-wider" : ""}`}>{c}</span>
+            <motion.li key={i} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28, ease: [0.2, 0.8, 0.2, 1] }} className={`flex gap-4 rounded-[var(--radius-md)] px-4 py-3.5 ${i === clues.length - 1 ? "bg-surface-2 shadow-[inset_0_0_0_1px_var(--color-line-strong)]" : "bg-surface-1 shadow-[inset_0_0_0_1px_var(--color-line)]"}`}>
+              <span className="num w-5 shrink-0 pt-0.5 font-mono text-xs text-fg-3">{String(i + 1).padStart(2, "0")}</span>
+              <span className={`text-[16px] leading-relaxed whitespace-pre-line text-fg ${/_ /.test(c) ? "font-mono tracking-wider" : ""}`}>{c}</span>
             </motion.li>
           ))}
         </AnimatePresence>
       </ol>
-      <div className="flex items-center gap-3 text-sm text-ink-400">
+      <div className="flex items-center gap-3 text-sm text-fg-3">
         <span>
           Clue {clues.length} of {total}
         </span>
         {!done && clues.length < total && (
-          <button className="btn-ghost px-3 py-1.5 text-sm" onClick={async () => handle(await act({ type: "hint" }))}>
-            💡 Next clue (−points)
+          <button className="btn-ghost btn-sm" onClick={async () => handle(await act({ type: "hint" }))}>
+            <Icon name="bulb" size={15} />
+            Next clue <span className="text-fg-3">costs points</span>
           </button>
         )}
       </div>
@@ -452,7 +460,7 @@ function CluesKind({ round, act, locked, resume }: Ctl) {
       )}
       {toast.node}
       {!done && (
-        <button className="text-sm text-ink-400 hover:text-white" onClick={() => act({ type: "give-up" })}>
+        <button className="btn-quiet btn-sm" onClick={() => act({ type: "give-up" })}>
           Give up
         </button>
       )}
@@ -470,13 +478,13 @@ function RevealKind(ctl: Ctl & { setStage: (m: MediaRef) => void }) {
   const done = locked || !!resume?.done;
   return (
     <div className="flex w-full flex-col items-center gap-4">
-      <div className="flex items-center gap-3 text-sm text-ink-400">
+      <div className="flex items-center gap-3 text-sm text-fg-3">
         <span>
           Reveal {step} of {total}
         </span>
         {!done && step < total && (
           <button
-            className="btn-ghost px-3 py-1.5 text-sm"
+            className="btn-ghost btn-sm"
             onClick={async () => {
               const r = await act({ type: "hint" });
               if (r?.reveal?.media) {
@@ -486,7 +494,8 @@ function RevealKind(ctl: Ctl & { setStage: (m: MediaRef) => void }) {
               }
             }}
           >
-            🔍 Reveal more (−points)
+            <Icon name="eye" size={15} />
+            Reveal more <span className="text-fg-3">costs points</span>
           </button>
         )}
       </div>
@@ -539,7 +548,12 @@ function OrderKind({ round, act, locked, reveal, resume }: Ctl) {
   const correctAt = (id: string, i: number) => reveal?.order && reveal.order[i] === id;
   return (
     <div className="flex w-full max-w-xl flex-col gap-3">
-      {!matchMedia && <div className="label text-center">▲ {ends[0]}</div>}
+      {!matchMedia && (
+        <div className="label flex items-center justify-center gap-1.5">
+          <Icon name="arrow-up-right" size={14} className="-rotate-45" />
+          {ends[0]}
+        </div>
+      )}
       <div className="flex gap-3">
         {matchMedia && (
           <div className="flex flex-col gap-2">
@@ -556,29 +570,38 @@ function OrderKind({ round, act, locked, reveal, resume }: Ctl) {
               key={o.id}
               value={o}
               dragListener={!(done || submitted)}
-              className={`flex h-16 cursor-grab items-center gap-3 rounded-xl border-2 px-3 active:cursor-grabbing ${reveal ? (correctAt(o.id, i) ? "border-good-400 bg-good-500/15" : "border-bad-400 bg-bad-500/15") : "border-white/10 bg-white/[0.05]"}`}
+              whileDrag={{ scale: 1.02, boxShadow: "0 12px 32px -8px rgb(0 0 0 / 0.6), inset 0 0 0 1px rgb(255 255 245 / 0.13)" }}
+              className={`flex h-16 cursor-grab touch-none items-center gap-3 rounded-[var(--radius-md)] px-3 active:cursor-grabbing ${reveal ? (correctAt(o.id, i) ? "bg-[color-mix(in_oklab,var(--color-good-500)_14%,var(--color-surface-1))] shadow-[inset_0_0_0_1.5px_var(--color-good-400)]" : "bg-[color-mix(in_oklab,var(--color-bad-500)_12%,var(--color-surface-1))] shadow-[inset_0_0_0_1.5px_var(--color-bad-400)]") : "bg-surface-2 shadow-[inset_0_0_0_1px_var(--color-line)]"}`}
             >
-              <span className="text-ink-400">⠿</span>
+              <span className="num w-5 text-center font-mono text-xs text-fg-3">{i + 1}</span>
               {o.media && <MediaView m={o.media} size="sm" />}
-              <span className="flex-1 font-semibold text-white">
+              <span className="min-w-0 flex-1 font-medium text-fg">
                 {o.label}
-                {o.sub && <span className="block text-xs text-ink-400">{o.sub}</span>}
+                {o.sub && <span className="num block text-[13px] font-normal text-fg-3">{o.sub}</span>}
               </span>
-              {!(done || submitted) && (
-                <span className="flex flex-col">
-                  <button aria-label="Move up" className="px-2 text-ink-400 hover:text-white" onClick={() => move(i, -1)}>
-                    ▲
+              {!(done || submitted) ? (
+                <span className="flex items-center">
+                  <button aria-label="Move up" className="btn-icon h-9 min-h-9 w-8" disabled={i === 0} onClick={() => move(i, -1)}>
+                    <Icon name="chevron-down" size={16} className="rotate-180" />
                   </button>
-                  <button aria-label="Move down" className="px-2 text-ink-400 hover:text-white" onClick={() => move(i, 1)}>
-                    ▼
+                  <button aria-label="Move down" className="btn-icon h-9 min-h-9 w-8" disabled={i === items.length - 1} onClick={() => move(i, 1)}>
+                    <Icon name="chevron-down" size={16} />
                   </button>
+                  <Icon name="grip" size={16} className="ml-1 text-fg-4" />
                 </span>
-              )}
+              ) : reveal ? (
+                <Icon name={correctAt(o.id, i) ? "check" : "x"} size={18} strokeWidth={2.25} className={correctAt(o.id, i) ? "text-good-400" : "text-bad-400"} />
+              ) : null}
             </Reorder.Item>
           ))}
         </Reorder.Group>
       </div>
-      {!matchMedia && <div className="label text-center">▼ {ends[1]}</div>}
+      {!matchMedia && (
+        <div className="label flex items-center justify-center gap-1.5">
+          <Icon name="arrow-up-right" size={14} className="rotate-135" />
+          {ends[1]}
+        </div>
+      )}
       {!done && !submitted && (
         <button
           className="btn-primary"
@@ -595,7 +618,8 @@ function OrderKind({ round, act, locked, reveal, resume }: Ctl) {
   );
 }
 
-const GROUP_COLORS = ["bg-yellow-400/90 text-ink-950", "bg-green-400/90 text-ink-950", "bg-sky-400/90 text-ink-950", "bg-purple-400/90 text-ink-950"];
+/** Four solved-group colours, from easiest to hardest. Muted so the tiles stay the loudest thing. */
+const GROUP_COLORS = ["bg-[#e8cf6a] text-[#1d1803]", "bg-[#93cf84] text-[#0d1f08]", "bg-[#94b6f2] text-[#0b1630]", "bg-[#c2a6ea] text-[#1c0f33]"];
 
 function GroupsKind({ round, act, locked, reveal, resume }: Ctl) {
   type G = { label: string; ids: string[]; level: number };
@@ -611,9 +635,9 @@ function GroupsKind({ round, act, locked, reveal, resume }: Ctl) {
   return (
     <div className="flex w-full max-w-2xl flex-col gap-2">
       {shown.map((g) => (
-        <motion.div key={g.label} initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className={`rounded-xl px-4 py-3 text-center ${GROUP_COLORS[g.level % 4]}`}>
-          <div className="text-sm font-black tracking-wide uppercase">{g.label}</div>
-          <div className="text-sm font-medium">{g.ids.map((id) => byId.get(id)?.label).join(" · ")}</div>
+        <motion.div key={g.label} initial={{ scale: 0.97, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.28, ease: [0.2, 0.8, 0.2, 1] }} className={`flex min-h-[68px] flex-col justify-center rounded-[var(--radius-md)] px-4 py-3 text-center ${GROUP_COLORS[g.level % 4]}`}>
+          <div className="text-[15px] font-semibold">{g.label}</div>
+          <div className="mt-0.5 text-sm opacity-80">{g.ids.map((id) => byId.get(id)?.label).join(", ")}</div>
         </motion.div>
       ))}
       <div className="grid grid-cols-4 gap-2">
@@ -628,7 +652,9 @@ function GroupsKind({ round, act, locked, reveal, resume }: Ctl) {
                 play("click");
                 setSel((s) => (on ? s.filter((x) => x !== o.id) : s.length < 4 ? [...s, o.id] : s));
               }}
-              className={`min-h-16 rounded-xl px-1 text-center text-xs font-bold uppercase transition sm:text-sm ${on ? "bg-ink-100 text-ink-950" : "bg-white/[0.08] text-white hover:bg-white/[0.14]"}`}
+              aria-pressed={on}
+              transition={{ layout: { duration: 0.28, ease: [0.2, 0.8, 0.2, 1] } }}
+              className={`min-h-[68px] rounded-[var(--radius-md)] px-1.5 text-center text-[13px] leading-tight font-semibold transition-colors duration-100 sm:text-[15px] ${on ? "bg-fg text-canvas" : "bg-surface-2 text-fg shadow-[inset_0_0_0_1px_var(--color-line)] hover:bg-surface-3"}`}
             >
               {o.label}
             </motion.button>
@@ -637,22 +663,25 @@ function GroupsKind({ round, act, locked, reveal, resume }: Ctl) {
       </div>
       {toast.node}
       {!done && (
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1 text-sm text-ink-400">
-            Mistakes left:
-            {Array.from({ length: 4 }, (_, i) => (
-              <span key={i} className={`h-3 w-3 rounded-full ${i < 4 - mistakes ? "bg-ink-300" : "bg-ink-700"}`} />
-            ))}
+        <div className="mt-2 flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
+          <div className="flex items-center gap-2 text-sm text-fg-3" aria-label={`${4 - mistakes} mistakes left`}>
+            Mistakes
+            <span className="flex gap-1">
+              {Array.from({ length: 4 }, (_, i) => (
+                <span key={i} className={`h-2 w-2 rounded-full transition-colors duration-200 ${i < 4 - mistakes ? "bg-fg-2" : "bg-surface-4"}`} />
+              ))}
+            </span>
           </div>
           <div className="flex gap-2">
-            <button className="btn-ghost px-3 py-1.5 text-sm" onClick={() => setOrder((o) => [...o].sort(() => Math.random() - 0.5))}>
+            <button className="btn-quiet btn-sm" onClick={() => setOrder((o) => [...o].sort(() => Math.random() - 0.5))}>
+              <Icon name="shuffle" size={15} />
               Shuffle
             </button>
-            <button className="btn-ghost px-3 py-1.5 text-sm" onClick={() => setSel([])} disabled={!sel.length}>
-              Clear
+            <button className="btn-quiet btn-sm" onClick={() => setSel([])} disabled={!sel.length}>
+              Deselect
             </button>
             <button
-              className="btn-primary px-4 py-1.5 text-sm"
+              className="btn-primary btn-sm px-4"
               disabled={sel.length !== 4}
               onClick={async () => {
                 const r = await act({ type: "answer", value: sel });
@@ -688,7 +717,7 @@ function MultiKind({ round, act, locked, resume }: Ctl) {
     <div className="flex w-full max-w-xl flex-col items-center gap-4">
       <div className="flex gap-2">
         {Array.from({ length: target }, (_, i) => (
-          <motion.div key={i} animate={{ scale: found[i] ? [1, 1.15, 1] : 1 }} className={`h-3 w-10 rounded-full ${found[i] ? "bg-good-400" : "bg-white/10"}`} />
+          <div key={i} className={`h-1.5 w-10 rounded-full transition-colors duration-300 ${found[i] ? "bg-good-400" : "bg-surface-3"}`} />
         ))}
       </div>
       <TextAnswer
@@ -712,14 +741,15 @@ function MultiKind({ round, act, locked, resume }: Ctl) {
       {toast.node}
       <div className="flex flex-wrap justify-center gap-2">
         {found.map((f) => (
-          <motion.span key={f} initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="chip border-good-500/40 bg-good-500/10 px-3 py-1 text-sm text-good-400">
-            ✓ {f}
+          <motion.span key={f} initial={{ y: 4, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="chip h-8 bg-[color-mix(in_oklab,var(--color-good-500)_12%,var(--color-surface-2))] px-3 text-sm text-fg">
+            <Icon name="check" size={14} strokeWidth={2.25} className="text-good-400" />
+            {f}
           </motion.span>
         ))}
       </div>
       {!done && found.length > 0 && found.length < target && (
-        <button className="text-sm text-ink-400 hover:text-white" onClick={() => act({ type: "finish" })}>
-          That&apos;s all I&apos;ve got — finish
+        <button className="btn-quiet btn-sm" onClick={() => act({ type: "finish" })}>
+          That&apos;s all I&apos;ve got
         </button>
       )}
     </div>
@@ -740,15 +770,18 @@ function RareKind({ round, act, locked, resume }: Ctl) {
         }}
       />
       {res && (
-        <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center">
+        <motion.div initial={{ y: 6, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.3, ease: [0.2, 0.8, 0.2, 1] }} className="text-center">
           {res.valid ? (
             <>
-              <div className="text-sm text-ink-400">{res.canonical}</div>
-              <div className="display text-5xl font-black text-white">{res.rarityPoints} <span className="text-2xl text-brand-400">rarity</span></div>
-              {res.percent !== undefined && <div className="text-sm text-ink-300">≈ {res.percent}% of players would say this</div>}
+              <div className="text-sm text-fg-2">{res.canonical}</div>
+              <div className="display num mt-1 text-[56px] leading-none font-semibold text-fg">
+                {res.rarityPoints}
+                <span className="ml-2 text-lg font-medium text-fg-3">rarity</span>
+              </div>
+              {res.percent !== undefined && <div className="mt-2 text-sm text-fg-3">About {res.percent}% of players would say this</div>}
             </>
           ) : (
-            <div className="display text-2xl font-bold text-bad-400">Not a valid answer (−10)</div>
+            <div className="text-lg font-medium text-bad-400">Not a valid answer · −10</div>
           )}
         </motion.div>
       )}
@@ -765,21 +798,24 @@ function SortKind({ round, act, locked, resume }: Ctl) {
   return (
     <div className="flex w-full max-w-2xl flex-col gap-2">
       {opts.map((o) => (
-        <div key={o.id} className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] p-2">
-          <span className="flex-1 px-2 font-semibold text-white">{o.label}</span>
-          {buckets.map((b, bi) => (
-            <button
-              key={b}
-              disabled={done}
-              onClick={() => {
-                play("click");
-                setAssign((a) => ({ ...a, [o.id]: bi as 0 | 1 }));
-              }}
-              className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${assign[o.id] === bi ? (bi === 0 ? "bg-cyan-500 text-ink-950" : "bg-hot-500 text-white") : "bg-white/[0.06] text-ink-300 hover:bg-white/10"}`}
-            >
-              {b}
-            </button>
-          ))}
+        <div key={o.id} className="flex items-center gap-2 rounded-[var(--radius-md)] bg-surface-1 p-1.5 pl-3 shadow-[inset_0_0_0_1px_var(--color-line)]">
+          <span className="min-w-0 flex-1 font-medium text-fg">{o.label}</span>
+          <span className="flex rounded-[var(--radius-sm)] bg-surface-2 p-0.5">
+            {buckets.map((b, bi) => (
+              <button
+                key={b}
+                disabled={done}
+                aria-pressed={assign[o.id] === bi}
+                onClick={() => {
+                  play("click");
+                  setAssign((a) => ({ ...a, [o.id]: bi as 0 | 1 }));
+                }}
+                className={`rounded-[6px] px-3 py-1.5 text-sm font-medium transition-colors duration-100 ${assign[o.id] === bi ? (bi === 0 ? "bg-[#94b6f2] text-[#0b1630]" : "bg-[#eea676] text-[#2a1405]") : "text-fg-3 hover:text-fg"}`}
+              >
+                {b}
+              </button>
+            ))}
+          </span>
         </div>
       ))}
       {!done && (
@@ -799,7 +835,18 @@ function SortKind({ round, act, locked, resume }: Ctl) {
   );
 }
 
-const ARROWS: Record<string, string> = { N: "⬆️", NE: "↗️", E: "➡️", SE: "↘️", S: "⬇️", SW: "↙️", W: "⬅️", NW: "↖️", "🎯": "🎯" };
+const BEARING: Record<string, number> = { N: 0, NE: 45, E: 90, SE: 135, S: 180, SW: 225, W: 270, NW: 315 };
+
+function Bearing({ dir }: { dir: string }) {
+  if (!(dir in BEARING)) return <Icon name="check" size={18} strokeWidth={2.25} className="text-good-400" />;
+  return (
+    <span className="grid h-7 w-7 place-items-center rounded-full bg-surface-3" title={dir}>
+      <span style={{ transform: `rotate(${BEARING[dir] - 45}deg)` }} className="grid place-items-center">
+        <Icon name="arrow-up-right" size={15} strokeWidth={2} className="text-fg" />
+      </span>
+    </span>
+  );
+}
 
 function MapKind({ round, act, locked, resume }: Ctl) {
   type Guess = { name: string; km: number; dir: string; pct: number };
@@ -827,21 +874,25 @@ function MapKind({ round, act, locked, resume }: Ctl) {
       {toast.node}
       <div className="w-full space-y-1.5">
         {guesses.map((g, i) => (
-          <motion.div key={g.name} initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2">
-            <span className="font-semibold text-white">
-              {i + 1}. {g.name}
+          <motion.div key={g.name} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="relative grid h-11 grid-cols-[1fr_auto_auto_auto] items-center gap-4 overflow-hidden rounded-[var(--radius-sm)] bg-surface-1 px-4 shadow-[inset_0_0_0_1px_var(--color-line)]">
+            <span className="absolute inset-y-0 left-0 bg-[color-mix(in_oklab,var(--color-accent)_9%,transparent)]" style={{ width: `${g.pct}%` }} />
+            <span className="relative truncate font-medium text-fg">
+              <span className="num mr-2 font-mono text-xs text-fg-3">{i + 1}</span>
+              {g.name}
             </span>
-            <span className="tabular-nums text-ink-300">{g.km.toLocaleString()} km</span>
-            <span className="text-xl">{ARROWS[g.dir] ?? g.dir}</span>
-            <span className="w-12 text-right font-bold tabular-nums text-brand-400">{g.pct}%</span>
+            <span className="num relative text-sm text-fg-2">{g.km.toLocaleString()} km</span>
+            <span className="relative">
+              <Bearing dir={g.dir} />
+            </span>
+            <span className="num relative w-11 text-right font-semibold text-fg">{g.pct}%</span>
           </motion.div>
         ))}
         {Array.from({ length: Math.max(0, 6 - guesses.length) }, (_, i) => (
-          <div key={i} className="h-10 rounded-xl border border-dashed border-white/10" />
+          <div key={i} className="h-11 rounded-[var(--radius-sm)] shadow-[inset_0_0_0_1px_var(--color-line)]" />
         ))}
       </div>
       {!done && (
-        <button className="text-sm text-ink-400 hover:text-white" onClick={() => act({ type: "give-up" })}>
+        <button className="btn-quiet btn-sm" onClick={() => act({ type: "give-up" })}>
           Give up
         </button>
       )}
@@ -857,12 +908,25 @@ function WagerKind({ round, act, locked, resume, reveal }: Ctl) {
   const done = locked || !!resume?.done;
   if (!q)
     return (
-      <div className="flex w-full max-w-md flex-col items-center gap-4">
-        <div className="text-ink-300">How confident are you? Win double your bet, lose it if wrong.</div>
-        <div className="display text-5xl font-black text-warn-400">{bet}</div>
-        <input type="range" min={10} max={max} step={10} value={bet} onChange={(e) => setBet(Number(e.target.value))} className="w-full accent-amber-400" disabled={done} />
+      <div className="card flex w-full max-w-md flex-col gap-5 p-6">
+        <div className="text-center text-fg-2">How sure are you? A right answer doubles your stake; a wrong one loses it.</div>
+        <div className="text-center">
+          <div className="label">Stake</div>
+          <div className="display num mt-1 text-[56px] leading-none font-semibold text-fg">{bet}</div>
+        </div>
+        <input type="range" min={10} max={max} step={10} value={bet} onChange={(e) => setBet(Number(e.target.value))} className="range w-full" disabled={done} aria-label="Stake" />
+        <dl className="num grid grid-cols-2 gap-2 text-center">
+          <div className="well py-3">
+            <dt className="label">If right</dt>
+            <dd className="mt-0.5 text-lg font-semibold text-good-400">+{bet}</dd>
+          </div>
+          <div className="well py-3">
+            <dt className="label">If wrong</dt>
+            <dd className="mt-0.5 text-lg font-semibold text-bad-400">−{bet}</dd>
+          </div>
+        </dl>
         <button
-          className="btn-primary w-full"
+          className="btn-primary btn-lg w-full"
           disabled={done}
           onClick={async () => {
             const r = await act({ type: "bet", value: bet });
@@ -870,13 +934,13 @@ function WagerKind({ round, act, locked, resume, reveal }: Ctl) {
             play("start");
           }}
         >
-          Bet {bet}
+          Stake {bet} and see the question
         </button>
       </div>
     );
   return (
     <div className="flex w-full flex-col items-center gap-4">
-      {q.prompt && <div className="display text-center text-xl font-bold text-white">{q.prompt}</div>}
+      {q.prompt && <div className="display max-w-2xl text-center text-[22px] leading-snug font-semibold text-fg">{q.prompt}</div>}
       {q.media && <MediaView m={q.media} />}
       <OptionGrid
         options={q.options ?? []}
@@ -917,19 +981,23 @@ function ChainKind({ round, act, locked, resume }: Ctl) {
   return (
     <div className="flex w-full max-w-md flex-col gap-3">
       <div className="flex items-center justify-between text-sm">
-        <span className="chip">Min {minLen} letters</span>
-        <span className="display text-2xl font-bold text-white tabular-nums">{score} pts</span>
-        <span className={`chip tabular-nums ${left < 4 ? "border-bad-500/50 text-bad-400" : ""}`}>⏱ {left.toFixed(0)}s</span>
+        <span className="text-fg-3">At least {minLen} letters</span>
+        <span className="display num text-xl font-semibold text-fg">{score}</span>
+        <span className={`num flex items-center gap-1.5 font-mono ${left < 4 ? "text-bad-400" : "text-fg-2"}`}>
+          <Icon name="clock" size={15} />
+          {left.toFixed(0)}s
+        </span>
       </div>
-      <div ref={scroller} className="flex max-h-72 flex-col gap-1.5 overflow-y-auto rounded-2xl border border-white/10 bg-ink-900/60 p-3">
+      <div ref={scroller} className="flex max-h-72 flex-col gap-1.5 overflow-y-auto rounded-[var(--radius-lg)] bg-surface-1 p-3 shadow-[inset_0_0_0_1px_var(--color-line)]">
         {words.map((x, i) => (
-          <motion.div key={i} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className={`max-w-[80%] rounded-2xl px-3 py-1.5 font-semibold ${x.by === "you" ? "self-end bg-brand-500/30 text-white" : "self-start bg-white/[0.07] text-ink-100"}`}>
+          <motion.div key={i} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className={`max-w-[80%] rounded-[14px] px-3.5 py-1.5 font-medium ${x.by === "you" ? "self-end bg-accent text-accent-ink" : "self-start bg-surface-3 text-fg"}`}>
             {x.w}
           </motion.div>
         ))}
       </div>
-      <div className="text-center text-sm text-ink-300">
-        Next word must start with <b className="text-xl text-white uppercase">{last.slice(-1)}</b>
+      <div className="flex items-center justify-center gap-2 text-sm text-fg-2">
+        Next word starts with
+        <span className="grid h-8 w-8 place-items-center rounded-[var(--radius-sm)] bg-surface-3 font-mono text-lg text-fg uppercase">{last.slice(-1)}</span>
       </div>
       <TextAnswer
         placeholder={`${last.slice(-1).toUpperCase()}…`}
@@ -992,13 +1060,17 @@ function MemoryKind({ round, act, locked, resume, reveal }: Ctl) {
       <div className="flex w-full flex-col items-center gap-4">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {study.map((m, i) => (
-            <motion.div key={i} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.05 }} className="grid place-items-center">
+            <motion.div key={i} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04, duration: 0.26 }} className="grid min-h-28 place-items-center rounded-[var(--radius-md)] bg-surface-1 p-3 shadow-[inset_0_0_0_1px_var(--color-line)]">
               <MediaView m={m} size="md" />
             </motion.div>
           ))}
         </div>
-        <div className="h-1.5 w-64 overflow-hidden rounded-full bg-white/10">
-          <div className="h-full bg-warn-400 transition-[width] duration-100" style={{ width: `${(left / studySeconds) * 100}%` }} />
+        <div className="flex items-center gap-3 text-sm text-fg-3">
+          Memorise
+          <div className="h-1 w-48 overflow-hidden rounded-full bg-surface-3">
+            <div className="h-full bg-fg-2" style={{ width: `${(left / studySeconds) * 100}%` }} />
+          </div>
+          <span className="num w-6 font-mono">{Math.ceil(left)}</span>
         </div>
         <button className="btn-ghost" onClick={ready} disabled={done}>
           I&apos;m ready
@@ -1007,7 +1079,7 @@ function MemoryKind({ round, act, locked, resume, reveal }: Ctl) {
     );
   return (
     <div className="flex w-full flex-col items-center gap-4">
-      {q?.prompt && <div className="display text-center text-xl font-bold text-white">{q.prompt}</div>}
+      {q?.prompt && <div className="display max-w-2xl text-center text-[22px] leading-snug font-semibold text-fg">{q.prompt}</div>}
       <OptionGrid
         options={q?.options ?? []}
         picked={picked}
@@ -1043,12 +1115,13 @@ function LettersKind({ round, act, locked, resume }: Ctl) {
         {letters.map((l, i) => (
           <motion.button
             key={i}
-            initial={{ rotateX: 90, opacity: 0 }}
-            animate={{ rotateX: 0, opacity: 1 }}
-            transition={{ delay: i * 0.05 }}
+            initial={{ y: 8, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: i * 0.035, duration: 0.26, ease: [0.2, 0.8, 0.2, 1] }}
+            whileTap={{ scale: 0.94 }}
             disabled={done || used[i]}
             onClick={() => setWord((w) => w + l.toLowerCase())}
-            className={`display grid h-14 w-12 place-items-center rounded-xl text-2xl font-black shadow-lg transition ${used[i] ? "bg-white/5 text-ink-600" : "bg-gradient-to-b from-amber-200 to-amber-400 text-ink-950 hover:-translate-y-0.5"}`}
+            className={`grid h-14 w-12 place-items-center rounded-[var(--radius-sm)] font-mono text-2xl font-medium transition-colors duration-100 ${used[i] ? "bg-surface-1 text-fg-4 shadow-[inset_0_0_0_1px_var(--color-line)]" : "bg-fg text-canvas shadow-[inset_0_-3px_0_rgb(0_0_0/0.18)] hover:bg-white"}`}
           >
             {l}
           </motion.button>
@@ -1070,19 +1143,24 @@ function LettersKind({ round, act, locked, resume }: Ctl) {
           } else play("correct");
         }}
       >
-        <input className="input text-center font-mono text-2xl tracking-[0.3em] uppercase" value={word} onChange={(e) => setWord(e.target.value.replace(/[^a-zA-Z]/g, "").slice(0, letters.length))} disabled={done} placeholder="YOUR WORD" autoFocus />
-        <button type="button" className="btn-ghost" onClick={() => setWord("")} disabled={done}>
-          ⌫
+        <input className="input min-h-12 text-center font-mono text-2xl tracking-[0.3em] uppercase" value={word} onChange={(e) => setWord(e.target.value.replace(/[^a-zA-Z]/g, "").slice(0, letters.length))} disabled={done} placeholder="YOUR WORD" autoFocus />
+        <button type="button" className="btn-ghost min-h-12 w-12 px-0" onClick={() => setWord("")} disabled={done} aria-label="Clear word">
+          <Icon name="backspace" size={18} />
         </button>
-        <button className="btn-primary px-6" disabled={done || word.length < 3}>
+        <button className="btn-primary min-h-12 px-6" disabled={done || word.length < 3}>
           Forge
         </button>
       </form>
-      {res && !res.valid && <div className="text-sm font-semibold text-bad-400">✗ {res.reason}{res.attemptsLeft ? ` — ${res.attemptsLeft} ${res.attemptsLeft === 1 ? "try" : "tries"} left` : ""}</div>}
+      {res && !res.valid && (
+        <div className="text-sm font-medium text-bad-400">
+          {res.reason}
+          {res.attemptsLeft ? ` · ${res.attemptsLeft} ${res.attemptsLeft === 1 ? "try" : "tries"} left` : ""}
+        </div>
+      )}
       {res?.valid && (
         <div className="text-center">
-          <div className="display text-3xl font-black text-white">{res.length} letters</div>
-          <div className="text-sm text-ink-400">Longest possible: {res.best}</div>
+          <div className="display num text-3xl font-semibold text-fg">{res.length} letters</div>
+          <div className="text-sm text-fg-3">Longest possible: {res.best}</div>
         </div>
       )}
     </div>
@@ -1120,13 +1198,14 @@ export function TimerBar({ deadline, offset, total, paused, onZero, stopped }: {
     return () => cancelAnimationFrame(raf);
   }, [deadline, offset, paused, stopped, onZero]);
   const pct = Math.max(0, Math.min(100, (left / total) * 100));
-  const color = pct > 50 ? "from-brand-500 to-cyan-400" : pct > 20 ? "from-warn-400 to-orange-500" : "from-bad-500 to-hot-500";
+  const urgent = pct <= 20 && !stopped;
+  const color = stopped ? "bg-fg-4" : pct > 40 ? "bg-fg-2" : pct > 20 ? "bg-warn-400" : "bg-bad-400";
   return (
-    <div className="flex items-center gap-3">
-      <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-white/[0.07]">
-        <div className={`h-full rounded-full bg-gradient-to-r ${color}`} style={{ width: `${pct}%` }} />
+    <div className="flex items-center gap-3" role="timer" aria-label={`${Math.ceil(left)} seconds left`}>
+      <div className="h-[3px] flex-1 overflow-hidden rounded-full bg-surface-3">
+        <div className={`h-full rounded-full transition-colors duration-300 ${color}`} style={{ width: `${pct}%` }} />
       </div>
-      <span className={`w-10 text-right font-bold tabular-nums ${pct <= 20 ? "text-bad-400" : "text-ink-300"}`}>{paused ? "⏸" : Math.ceil(left)}</span>
+      <span className={`num w-7 text-right font-mono text-sm transition-colors duration-300 ${urgent ? "text-bad-400" : "text-fg-3"}`}>{paused ? <Icon name="pause" size={14} className="ml-auto" /> : Math.ceil(left)}</span>
     </div>
   );
 }
@@ -1198,9 +1277,15 @@ export function RoundPlayer({
     }
   })();
   return (
-    <div className="flex w-full flex-col items-center gap-5">
+    <div className="flex w-full flex-col items-center gap-7 sm:gap-8">
       {header}
-      <motion.h2 key={round.roundId} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="display max-w-3xl text-center text-2xl font-bold text-white sm:text-3xl">
+      <motion.h2
+        key={round.roundId}
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.32, ease: [0.2, 0.8, 0.2, 1] }}
+        className="display max-w-[40rem] text-center text-[24px] leading-[1.22] font-semibold text-balance text-fg sm:text-[30px]"
+      >
         {round.prompt}
       </motion.h2>
       {media.length > 0 && (

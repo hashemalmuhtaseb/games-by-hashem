@@ -12,6 +12,7 @@ import { emptySessionMemory, type HistoryView, type SessionMemory } from "@/engi
 import { applyAction, applyTimeout, newPlayerState } from "@/engine/handlers";
 import { mergeScoring } from "@/engine/scoring";
 import { applyClosest } from "@/engine/closest";
+import { applyNet, chipMatchDecided, chipStandings, DEFAULT_STARTING_CHIPS, MAX_STARTING_CHIPS, MIN_STARTING_CHIPS } from "@/engine/chips";
 import type { Action, PlayerRoundState, PublicRound, RevealPayload, Round } from "@/engine/types";
 import { loadHistory, recordSeen } from "./history";
 import { pickRound, type PickState } from "./picker";
@@ -49,6 +50,8 @@ export const SettingsSchema = z.object({
   lives: z.number().int().min(1).max(5),
   tournamentGames: z.array(z.string().max(40)).max(5),
   gameMaster: z.enum(["off", "classic", "ai"]).default("classic"),
+  /** Risk & Reward: virtual chips every player starts the match with. */
+  startingChips: z.number().int().min(MIN_STARTING_CHIPS).max(MAX_STARTING_CHIPS).default(DEFAULT_STARTING_CHIPS),
 });
 export type RoomSettings = z.infer<typeof SettingsSchema>;
 
@@ -73,6 +76,8 @@ interface RoomPlayer {
   lives: number;
   eliminated: boolean;
   eliminatedAt?: number; // stage/round index, for final ordering
+  /** Risk & Reward: chips held before the round this player went bust in (tie-break). */
+  balanceBefore?: number;
   qualities: number[];
   maxRarity: number;
   lastPoints: number | null;
@@ -151,6 +156,10 @@ export interface RoundResult {
   distance?: number | null;
   closest?: boolean;
   closestRank?: number | null;
+  /** Risk & Reward only. */
+  stake?: number | null;
+  balance?: number;
+  eliminated?: boolean;
 }
 
 interface FinalResults {
@@ -194,6 +203,7 @@ export function defaultSettings(gameSlug = "roulette"): RoomSettings {
     lives: 3,
     tournamentGames: [],
     gameMaster: "classic",
+    startingChips: DEFAULT_STARTING_CHIPS,
   };
 }
 
@@ -209,7 +219,9 @@ function sanitizeSettings(s: RoomSettings): RoomSettings {
     out.modes = out.modes.filter((m) => g.modes.some((x) => x.id === m));
     if (!out.modes.length) out.modes = undefined;
   }
-  out.tournamentGames = [...new Set(out.tournamentGames)].filter((slug) => multiplayerGames().some((x) => x.slug === slug));
+  // Chip balances belong to a whole match, so Risk & Reward can't be one stage of a tournament.
+  out.tournamentGames = [...new Set(out.tournamentGames)].filter((slug) => slug !== RISK_SLUG && multiplayerGames().some((x) => x.slug === slug));
+  if (out.gameSlug === RISK_SLUG && (out.mode === "survival" || out.mode === "tournament")) out.mode = "classic";
   if (out.mode === "ranked") {
     // Ranked is standardised so ratings stay comparable.
     out.modes = undefined;
@@ -238,6 +250,7 @@ function publicPlayer(r: Room, p: RoomPlayer) {
     streak: p.streak,
     correct: p.correct,
     lives: r.settings.mode === "survival" ? p.lives : null,
+    chips: isRisk(r) ? p.score : null,
     eliminated: p.eliminated,
     answered: r.phase === "question" && !!r.live?.states.get(p.id)?.done,
     lastPoints: p.lastPoints,
@@ -339,6 +352,17 @@ function systemChat(r: Room, text: string) {
 
 // ───────────────────────── membership ─────────────────────────
 
+const RISK_SLUG = "risk-reward";
+
+/** Risk & Reward matches keep a chip balance per player (stored in `score`). */
+function isRisk(r: Room): boolean {
+  return r.settings.gameSlug === RISK_SLUG && r.settings.mode !== "tournament";
+}
+
+function chipPlayers(r: Room) {
+  return [...r.players.values()].filter((p) => !p.spectator).map((p) => ({ id: p.id, balance: p.score, eliminated: p.eliminated, eliminatedAt: p.eliminatedAt, balanceBefore: p.balanceBefore }));
+}
+
 function activePlayers(r: Room): RoomPlayer[] {
   return [...r.players.values()].filter((p) => !p.spectator && !p.eliminated);
 }
@@ -398,7 +422,7 @@ export function joinRoom(r: Room, pl: Player, registered: boolean, wantSpectator
     const playing = activePlayers(r).length;
     const inGame = r.phase !== "lobby" && r.phase !== "results";
     let spectator = wantSpectator;
-    if (!spectator && (playing >= r.settings.maxPlayers || (inGame && (!r.settings.allowLateJoin || r.settings.mode === "ranked" || r.settings.mode === "survival" || r.settings.mode === "tournament")))) {
+    if (!spectator && (playing >= r.settings.maxPlayers || (inGame && (!r.settings.allowLateJoin || isRisk(r) || r.settings.mode === "ranked" || r.settings.mode === "survival" || r.settings.mode === "tournament")))) {
       if (!r.settings.allowSpectators) return { error: inGame ? "This game is already in progress." : "This room is full." };
       spectator = true;
     }
@@ -637,10 +661,10 @@ export async function startGame(r: Room, playerId: string) {
       r.players.delete(p.id);
       continue;
     }
-    Object.assign(p, { score: 0, streak: 0, bestStreak: 0, correct: 0, rounds: 0, lives: r.settings.lives, eliminated: false, eliminatedAt: undefined, qualities: [], maxRarity: 0, lastPoints: null });
+    Object.assign(p, { score: isRisk(r) ? r.settings.startingChips : 0, streak: 0, bestStreak: 0, correct: 0, rounds: 0, lives: r.settings.lives, eliminated: false, eliminatedAt: undefined, balanceBefore: undefined, qualities: [], maxRarity: 0, lastPoints: null });
   }
   if (r.settings.mode === "tournament") {
-    const pool = multiplayerGames().map((g) => g.slug).filter((s) => s !== "quickfire");
+    const pool = multiplayerGames().map((g) => g.slug).filter((s) => s !== "quickfire" && s !== RISK_SLUG);
     const chosen = r.settings.tournamentGames.length >= 2 ? r.settings.tournamentGames : shuffle(createRng(randomSeed()), pool).slice(0, 3);
     r.stageGames = chosen;
     r.stage = 0;
@@ -708,7 +732,9 @@ async function nextQuestion(r: Room) {
 async function nextQuestionInner(r: Room) {
   const game = getGame(currentGameSlug(r))!;
   const active = activePlayers(r);
-  const survivalOver = r.settings.mode === "survival" && (active.length === 0 || (active.length <= 1 && [...r.players.values()].filter((p) => !p.spectator).length > 1));
+  const survivalOver =
+    (r.settings.mode === "survival" && (active.length === 0 || (active.length <= 1 && [...r.players.values()].filter((p) => !p.spectator).length > 1))) ||
+    (isRisk(r) && chipMatchDecided(chipPlayers(r)));
   if ((r.totalRounds > 0 && r.index + 1 >= r.totalRounds) || survivalOver || r.index >= 39 || active.length === 0) return endStage(r);
   const pick = r.pick!;
   pick.index = r.index + 1;
@@ -740,7 +766,7 @@ async function nextQuestionInner(r: Room) {
 }
 
 function ctxFor(r: Room, p: RoomPlayer, scoring: ReturnType<typeof mergeScoring>, now = Date.now()) {
-  return { now, streak: p.streak, playerId: p.id, scoring, services: { rarity: prismaRarityStore }, roomSize: activePlayers(r).length };
+  return { now, streak: p.streak, playerId: p.id, scoring, services: { rarity: prismaRarityStore }, roomSize: activePlayers(r).length, balance: isRisk(r) ? p.score : undefined };
 }
 
 export async function act(r: Room, playerId: string, roundId: string, action: Action) {
@@ -805,10 +831,19 @@ async function endQuestion(r: Room) {
   for (const [id, st] of l.states) {
     const p = r.players.get(id);
     if (!p) continue;
-    if (l.modifier?.id === "double") st.points *= 2;
-    if (l.modifier?.id === "jackpot") st.points = st.correct ? st.points * 3 : -50;
+    const risk = isRisk(r);
+    // Chip rounds are never multiplied by chaos modifiers: the stake is the whole story.
+    if (!risk && l.modifier?.id === "double") st.points *= 2;
+    if (!risk && l.modifier?.id === "jackpot") st.points = st.correct ? st.points * 3 : -50;
     if (st.breakdown) st.breakdown.total = st.points;
-    p.score = Math.max(0, p.score + st.points);
+    const before = p.score;
+    p.score = risk ? applyNet(p.score, st.points) : Math.max(0, p.score + st.points);
+    if (risk && p.score === 0 && !p.eliminated) {
+      p.eliminated = true;
+      p.eliminatedAt = r.index;
+      p.balanceBefore = before;
+      systemChat(r, `💸 ${p.name} is out of chips and is now spectating.`);
+    }
     p.lastPoints = st.points;
     p.rounds++;
     p.qualities.push(st.quality);
@@ -819,7 +854,7 @@ async function endQuestion(r: Room) {
       p.bestStreak = Math.max(p.bestStreak, p.streak);
     } else {
       p.streak = 0;
-      if (r.settings.mode === "survival") {
+      if (r.settings.mode === "survival" && !risk) {
         p.lives--;
         if (p.lives <= 0) {
           p.eliminated = true;
@@ -829,7 +864,15 @@ async function endQuestion(r: Room) {
       }
     }
     const c = closest?.get(id);
-    results.push({ playerId: id, correct: st.correct, points: st.points, answer: st.answerLabel, breakdown: st.breakdown, ...(c ? { guess: c.guess, distance: c.distance, closest: c.closest, closestRank: c.rank } : {}) });
+    results.push({
+      playerId: id,
+      correct: st.correct,
+      points: st.points,
+      answer: st.answerLabel,
+      breakdown: st.breakdown,
+      ...(c ? { guess: c.guess, distance: c.distance, closest: c.closest, closestRank: c.rank } : {}),
+      ...(risk ? { stake: (st.data.bet as number | null) ?? null, balance: p.score, eliminated: p.eliminated && p.eliminatedAt === r.index } : {}),
+    });
     if (l.dbRoundId)
       db.submission.create({ data: { roundId: l.dbRoundId, playerId: id, answer: { label: st.answerLabel ?? null } as object, correct: st.correct, points: st.points, responseMs: Math.max(0, now - st.startedAt) } }).catch(() => undefined);
   }
@@ -903,15 +946,22 @@ async function finishGame(r: Room) {
   r.phaseEndsAt = undefined;
   r.live = null;
   const players = [...r.players.values()].filter((p) => !p.spectator && p.rounds > 0);
-  // Survivors rank above eliminated players; then by score.
-  const ordered = players.sort((a, b) => Number(a.eliminated) - Number(b.eliminated) || (b.eliminatedAt ?? 0) - (a.eliminatedAt ?? 0) || b.score - a.score);
   const standings: FinalResults["standings"] = [];
-  let rank = 0;
-  ordered.forEach((p, i) => {
-    const prev = ordered[i - 1];
-    if (!prev || prev.score !== p.score || prev.eliminated !== p.eliminated) rank = i + 1;
-    standings.push({ playerId: p.id, name: p.name, avatar: p.avatar, photo: p.photo, color: p.color, team: p.team, score: p.score, correct: p.correct, rank, eliminated: p.eliminated });
-  });
+  const row = (p: RoomPlayer, rank: number) => ({ playerId: p.id, name: p.name, avatar: p.avatar, photo: p.photo, color: p.color, team: p.team, score: p.score, correct: p.correct, rank, eliminated: p.eliminated });
+  if (isRisk(r)) {
+    // Chip standings: players with chips by balance, then busts (later first, then pre-round balance).
+    const byId = new Map(players.map((p) => [p.id, p]));
+    for (const s of chipStandings(chipPlayers(r).filter((c) => byId.has(c.id)))) standings.push(row(byId.get(s.id)!, s.rank));
+  } else {
+    // Survivors rank above eliminated players; later eliminations above earlier ones; then by score.
+    const ordered = players.sort((a, b) => Number(a.eliminated) - Number(b.eliminated) || (b.eliminatedAt ?? 0) - (a.eliminatedAt ?? 0) || b.score - a.score);
+    let rank = 0;
+    ordered.forEach((p, i) => {
+      const prev = ordered[i - 1];
+      if (!prev || prev.score !== p.score || prev.eliminated !== p.eliminated || (prev.eliminatedAt ?? 0) !== (p.eliminatedAt ?? 0)) rank = i + 1;
+      standings.push(row(p, rank));
+    });
+  }
   let teams: FinalResults["teams"];
   if (r.settings.mode === "teams") {
     const t = teamScores(r).filter((x) => x.members > 0).sort((a, b) => b.score - a.score);
@@ -932,7 +982,7 @@ async function finishGame(r: Room) {
   const slug = r.settings.mode === "tournament" ? "tournament" : r.settings.gameSlug;
   for (const s of standings) {
     const p = r.players.get(s.playerId)!;
-    const won = !tie && p.score > 0 && (teams ? p.team === winningTeam : s.rank === 1 && standings.length > 1);
+    const won = !tie && (p.score > 0 || isRisk(r)) && (teams ? p.team === winningTeam : s.rank === 1 && standings.length > 1);
     if (r.matchId) db.score.create({ data: { matchId: r.matchId, playerId: p.id, points: p.score, rank: s.rank, correct: p.correct, rounds: p.rounds } }).catch(() => undefined);
     try {
       const prog = await applyGameResult({ playerId: p.id, gameSlug: slug, points: p.score, rounds: p.rounds, correct: p.correct, bestStreak: p.bestStreak, won, maxRarity: p.maxRarity, survivedRounds: r.settings.mode === "survival" ? p.rounds : 0, hosted: p.id === r.hostId, qualities: p.qualities });

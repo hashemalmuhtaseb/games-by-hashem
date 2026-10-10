@@ -11,7 +11,7 @@ import { CATEGORY_BY_ID, firstLetter } from "@/content/categories";
 import type { ActContext, Action, Round } from "@/engine/types";
 
 const media = { flag: (iso: string) => `/api/media/opaque-${Math.random().toString(36).slice(2)}` };
-const ctx = (): ActContext => ({ now: Date.now() + 2000, streak: 0, playerId: "p1", scoring: mergeScoring(), services: { rarity: new MemoryRarityStore() } });
+const ctx = (): ActContext => ({ now: Date.now() + 2000, streak: 0, playerId: "p1", scoring: mergeScoring(), services: { rarity: new MemoryRarityStore() }, balance: 1000 });
 
 /** A sequence of actions that should complete the round correctly. */
 async function correctActions(r: Round): Promise<Action[] | null> {

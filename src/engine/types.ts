@@ -217,6 +217,8 @@ export interface ActContext {
   scoring: ScoringConfig;
   /** Multiplayer: other submissions in the room for uniqueness bonuses. */
   roomSize?: number;
+  /** Risk & Reward: the player's current chip balance, owned by the room or solo session. */
+  balance?: number;
   services: EngineServices;
 }
 

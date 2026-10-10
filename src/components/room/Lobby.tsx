@@ -210,7 +210,16 @@ export function Lobby({ state, me }: { state: RoomSnapshot; me: string }) {
               onChange={(v) => void set({ timeLimitSec: v ? Number(v) : null })}
             />
           )}
-          {s.mode === "survival" && <NumberSetting label="Lives" value={s.lives} min={1} max={5} disabled={!isHost} onChange={(v) => void set({ lives: v })} />}
+          {s.gameSlug === "risk-reward" && (
+            <SelectSetting
+              label="Starting chips"
+              value={String(s.startingChips)}
+              disabled={!isHost}
+              options={[...new Set([500, 1000, 2500, 5000, 10000, s.startingChips])].sort((a, b) => a - b).map((n) => [String(n), `${n.toLocaleString()} chips`] as [string, string])}
+              onChange={(v) => void set({ startingChips: Number(v) })}
+            />
+          )}
+          {s.mode === "survival" && s.gameSlug !== "risk-reward" && <NumberSetting label="Lives" value={s.lives} min={1} max={5} disabled={!isHost} onChange={(v) => void set({ lives: v })} />}
           {s.mode === "teams" && <NumberSetting label="Teams" value={s.teamCount} min={2} max={4} disabled={!isHost} onChange={(v) => void set({ teamCount: v })} />}
           <NumberSetting label="Max players" value={s.maxPlayers} min={2} max={12} disabled={!isHost} onChange={(v) => void set({ maxPlayers: v })} />
           <NumberSetting label="Reveal (sec)" value={s.revealSec} min={3} max={30} disabled={!isHost} onChange={(v) => void set({ revealSec: v })} />

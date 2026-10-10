@@ -35,6 +35,8 @@ interface Ctl {
   reveal: RevealPayload | null;
   resume: Resume | null;
   busy: boolean;
+  /** Risk & Reward: the player's live chip balance. */
+  balance?: number;
 }
 
 // ───────────────────────── shared bits ─────────────────────────
@@ -849,33 +851,140 @@ function MapKind({ round, act, locked, resume }: Ctl) {
   );
 }
 
-function WagerKind({ round, act, locked, resume, reveal }: Ctl) {
-  const max = (round.extra?.maxBet as number) ?? 100;
-  const [bet, setBet] = useState(Math.round(max / 2 / 10) * 10);
+type Odds = { num: number; den: number; label: string };
+
+function WagerKind({ round, act, locked, resume, reveal, balance }: Ctl) {
+  const odds = (round.extra?.odds as Odds | undefined) ?? { num: 1, den: 1, label: "Evens (1/1)" };
+  const bal = Math.max(0, Math.floor(balance ?? 0));
+  const initial = Math.max(1, Math.min(bal, Math.round(bal / 10)));
+  const [stake, setStake] = useState(initial);
+  const [text, setText] = useState(String(initial));
+  const [confirming, setConfirming] = useState(false);
+  const [placed, setPlaced] = useState<number | null>(null);
+  const [err, setErr] = useState<string | null>(null);
   const [q, setQ] = useState<QReveal | null>(resume?.reveal ?? null);
   const [picked, setPicked] = useState<string | null>(null);
   const done = locked || !!resume?.done;
+  const profit = Math.floor((stake * odds.num) / odds.den);
+  const valid = Number.isInteger(stake) && stake >= 1 && stake <= bal;
+  const set = (n: number) => {
+    const v = Math.max(0, Math.min(bal, Math.floor(n)));
+    setStake(v);
+    setText(String(v));
+    setConfirming(false);
+    setErr(null);
+  };
+  const shownStake = placed ?? stake;
+  const shownProfit = Math.floor((shownStake * odds.num) / odds.den);
+  const summary = (
+    <div className="grid w-full grid-cols-3 gap-2 text-center" aria-live="polite">
+      <div className="rounded-xl border border-white/10 bg-white/[0.04] px-2 py-2">
+        <div className="label">Balance</div>
+        <div className="display text-xl font-bold text-white tabular-nums">{bal.toLocaleString()}</div>
+      </div>
+      <div className="rounded-xl border border-good-500/30 bg-good-500/10 px-2 py-2">
+        <div className="label">If right</div>
+        <div className="display text-xl font-bold text-good-400 tabular-nums">+{shownProfit.toLocaleString()}</div>
+        <div className="text-[11px] text-ink-400">pays {(shownStake + shownProfit).toLocaleString()} back</div>
+      </div>
+      <div className="rounded-xl border border-bad-500/30 bg-bad-500/10 px-2 py-2">
+        <div className="label">If wrong</div>
+        <div className="display text-xl font-bold text-bad-400 tabular-nums">−{shownStake.toLocaleString()}</div>
+        <div className="text-[11px] text-ink-400">leaves {Math.max(0, bal - shownStake).toLocaleString()}</div>
+      </div>
+    </div>
+  );
+  if (bal <= 0 && !q) return <div className="card max-w-md p-5 text-center text-ink-300">You&apos;re out of chips, so you&apos;re watching from here.</div>;
   if (!q)
     return (
       <div className="flex w-full max-w-md flex-col items-center gap-4">
-        <div className="text-ink-300">How confident are you? Win double your bet, lose it if wrong.</div>
-        <div className="display text-5xl font-black text-warn-400">{bet}</div>
-        <input type="range" min={10} max={max} step={10} value={bet} onChange={(e) => setBet(Number(e.target.value))} className="w-full accent-amber-400" disabled={done} />
-        <button
-          className="btn-primary w-full"
-          disabled={done}
-          onClick={async () => {
-            const r = await act({ type: "bet", value: bet });
-            if (r?.reveal) setQ(r.reveal as QReveal);
-            play("start");
-          }}
-        >
-          Bet {bet}
-        </button>
+        <div className="flex items-center gap-2 text-sm text-ink-300">
+          <span className="chip border-warn-400/40 text-warn-400">Odds {odds.label}</span>
+          <span>Virtual chips only</span>
+        </div>
+        {summary}
+        <label className="flex w-full flex-col gap-1">
+          <span className="label">Your stake</span>
+          <input
+            className="input text-center text-3xl font-bold tabular-nums"
+            inputMode="numeric"
+            value={text}
+            disabled={done || confirming}
+            aria-invalid={!valid}
+            onChange={(e) => {
+              const t = e.target.value.replace(/[^0-9]/g, "").slice(0, 9);
+              setText(t);
+              setStake(t ? Number(t) : 0);
+              setConfirming(false);
+              setErr(null);
+            }}
+          />
+        </label>
+        <input
+          type="range"
+          min={1}
+          max={Math.max(1, bal)}
+          step={1}
+          value={Math.min(Math.max(stake, 1), Math.max(1, bal))}
+          onChange={(e) => set(Number(e.target.value))}
+          className="w-full accent-amber-400"
+          disabled={done || confirming}
+          aria-label="Stake"
+        />
+        <div className="grid w-full grid-cols-4 gap-2">
+          {[0.1, 0.25, 0.5].map((f) => (
+            <button key={f} type="button" className="btn-ghost px-2 py-2 text-sm" disabled={done || confirming} onClick={() => set(Math.max(1, Math.floor(bal * f)))}>
+              {f * 100}%
+            </button>
+          ))}
+          <button type="button" className="btn-danger px-2 py-2 text-sm" disabled={done || confirming} onClick={() => set(bal)}>
+            All-in
+          </button>
+        </div>
+        {!valid && <div className="text-sm text-bad-400">{stake > bal ? `You only have ${bal.toLocaleString()} chips.` : "Stake at least 1 chip."}</div>}
+        {err && <div className="text-sm text-bad-400">{err}</div>}
+        {!confirming ? (
+          <button className="btn-primary w-full py-3" disabled={done || !valid} onClick={() => setConfirming(true)}>
+            Review stake
+          </button>
+        ) : (
+          <div className="flex w-full flex-col gap-2 rounded-2xl border border-warn-400/40 bg-warn-400/10 p-3 text-center">
+            <div className="text-sm text-ink-100">
+              Stake <b className="text-white">{stake.toLocaleString()}</b> chips{stake === bal ? " (all-in)" : ""}? Right pays <b className="text-good-400">+{profit.toLocaleString()}</b>, wrong costs{" "}
+              <b className="text-bad-400">{stake.toLocaleString()}</b>
+              {stake === bal ? " and eliminates you" : ""}. You can&apos;t change it after this.
+            </div>
+            <div className="flex gap-2">
+              <button className="btn-ghost flex-1" onClick={() => setConfirming(false)}>
+                Change
+              </button>
+              <button
+                className="btn-primary flex-1"
+                disabled={done || placed !== null}
+                onClick={async () => {
+                  setPlaced(stake);
+                  const r = await act({ type: "bet", value: stake });
+                  if (!r || r.error) {
+                    setPlaced(null);
+                    setConfirming(false);
+                    setErr(r?.error ?? "Couldn't place that stake.");
+                    return;
+                  }
+                  if (r.reveal) setQ(r.reveal as QReveal);
+                  play("start");
+                }}
+              >
+                Confirm stake
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   return (
     <div className="flex w-full flex-col items-center gap-4">
+      <div className="w-full max-w-md">{summary}</div>
+      <div className="text-sm text-ink-400">Stake locked: {shownStake.toLocaleString()} chips</div>
       {q.prompt && <div className="display text-center text-xl font-bold text-white">{q.prompt}</div>}
       {q.media && <MediaView m={q.media} />}
       <OptionGrid
@@ -1140,6 +1249,7 @@ export function RoundPlayer({
   reveal,
   resume,
   header,
+  balance,
 }: {
   round: PublicRound;
   act: (a: Action) => Promise<ActResponse | null>;
@@ -1147,6 +1257,7 @@ export function RoundPlayer({
   reveal: RevealPayload | null;
   resume: Resume | null;
   header?: ReactNode;
+  balance?: number;
 }) {
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState<MediaRef | null>(resume?.stage ?? null);
@@ -1161,7 +1272,7 @@ export function RoundPlayer({
     },
     [act],
   );
-  const ctl: Ctl = { round, act: wrapped, locked: locked || !!reveal, reveal, resume, busy };
+  const ctl: Ctl = { round, act: wrapped, locked: locked || !!reveal, reveal, resume, busy, balance };
   const media = round.kind === "order" && round.extra?.matchMedia ? [] : round.kind === "reveal" && stage ? [stage] : round.media ?? [];
   const body = (() => {
     switch (round.kind) {

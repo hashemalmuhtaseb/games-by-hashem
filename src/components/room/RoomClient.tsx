@@ -275,7 +275,7 @@ export function RoomClient({ code }: { code: string }) {
                 {round.notice && <div className="text-center text-sm text-warn-400">{round.notice}</div>}
                 <AnimatePresence mode="wait">
                   <motion.div key={round.round.roundId} initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }} className="flex flex-col items-center gap-5">
-                    <RoundPlayer round={round.round} act={act} locked={spectating || !!mine?.done || state.paused} reveal={reveal} resume={resume} />
+                    <RoundPlayer round={round.round} act={act} locked={spectating || !!mine?.done || state.paused} reveal={reveal} resume={resume} balance={myPlayer?.chips ?? undefined} />
                     {mine?.done && !reveal && (
                       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center text-ink-300">
                         ✓ Locked in{mine.points !== undefined ? ` — ${mine.points > 0 ? "+" : ""}${mine.points} pts` : ""}. Waiting for the others…

@@ -3,6 +3,7 @@ import { COUNTRIES, distanceKm, direction, type Country } from "@/content/datase
 import { compact, findMatch, matchesAny, normalize } from "./normalize";
 import { clueQuality, closeness, computePoints } from "./scoring";
 import { distanceOf, parseGuess } from "./closest";
+import { checkStake, oddsForDifficulty, profitFor, wagerNet, type Odds } from "./chips";
 import { rarityFor, answerKey, commonPointsFromProbability } from "./rarity";
 import { isDictionaryWord, botWord } from "./dictionary";
 import type { ActContext, ActResult, Action, PlayerRoundState, Round, RoundHandler, RoundKind } from "./types";
@@ -381,31 +382,48 @@ const map: RoundHandler = {
 };
 
 // ───────────────────────── wager ─────────────────────────
+// Risk & Reward. `points` for this handler is the NET chip change (+profit or −stake); the room or
+// solo session owns the balance and applies it exactly once when the round settles.
+function roundOdds(round: Round): Odds {
+  return (round.pub.extra?.odds as Odds | undefined) ?? oddsForDifficulty(round.difficulty);
+}
+
 const wager: RoundHandler = {
   initState: () => ({ data: { bet: null as number | null } }),
   act(round, state, action, ctx) {
-    const data = state.data as { bet: number | null };
-    const max = (round.pub.extra?.maxBet as number) ?? 100;
+    const data = state.data as { bet: number | null; balance?: number };
+    const odds = roundOdds(round);
     if (action.type === "bet") {
-      if (data.bet !== null) return { error: "already bet" };
-      const b = Math.round(Number(action.value));
-      if (!Number.isFinite(b) || b < 10 || b > max) return { error: "invalid bet" };
-      data.bet = b;
+      // The first accepted stake locks the round for this player: no changes, no second stake.
+      if (data.bet !== null) return { error: "Your stake is locked in for this round." };
+      const balance = ctx.balance ?? 0;
+      const check = checkStake(action.value, balance);
+      if (!check.ok) return { error: check.error };
+      data.bet = check.stake!;
+      data.balance = balance;
       state.data.betAt = ctx.now;
-      return { reveal: { options: round.secret.data?.options, prompt: round.secret.data?.question, media: round.secret.data?.media } };
+      return {
+        feedback: { stake: data.bet, payout: data.bet + profitFor(data.bet, odds), loss: data.bet },
+        reveal: { options: round.secret.data?.options, prompt: round.secret.data?.question, media: round.secret.data?.media },
+      };
     }
     if (action.type !== "answer") return { error: "unsupported" };
-    if (data.bet === null) return { error: "place a bet first" };
+    if (data.bet === null) return { error: "Place your stake first." };
     const opts = round.secret.data?.options as { id: string; label: string }[];
     const id = typeof action.value === "string" ? action.value : "";
     if (!opts.some((o) => o.id === id)) return { error: "invalid option" };
     const correct = id === round.secret.correctOptionId;
-    finish(round, state, ctx, { correct, fixedPoints: correct ? data.bet * 2 : -data.bet, answerLabel: opts.find((o) => o.id === id)?.label });
-    return { feedback: { correct } };
+    const net = wagerNet(data.bet, correct, odds);
+    state.data.net = net;
+    finish(round, state, ctx, { correct, fixedPoints: net, answerLabel: opts.find((o) => o.id === id)?.label });
+    return { feedback: { correct, net } };
   },
   timeout(round, state, ctx) {
+    // Staked but didn't answer in time: the stake is lost. No stake: nothing changes.
     const data = state.data as { bet: number | null };
-    finish(round, state, ctx, { correct: false, fixedPoints: data.bet ? -data.bet : 0 });
+    const net = wagerNet(data.bet, false, roundOdds(round));
+    state.data.net = net;
+    finish(round, state, ctx, { correct: false, fixedPoints: net, answerLabel: data.bet ? "No answer" : "No stake" });
   },
 };
 

@@ -179,7 +179,8 @@ export function SoloPlay({ game, variant, modes }: { game: GameLite; variant: Va
           )}
         </AnimatePresence>
         <motion.div key={score} initial={{ scale: 1.25 }} animate={{ scale: 1 }} className="display min-w-16 text-right text-2xl font-black text-white tabular-nums">
-          {score}
+          {score.toLocaleString()}
+          {view?.chips && <span className="ml-1 align-middle text-xs font-semibold tracking-wide text-ink-400 uppercase">chips</span>}
         </motion.div>
         {view && !summary && (
           <button onClick={quit} className="rounded-lg px-2 py-1 text-xs text-ink-400 hover:bg-white/5 hover:text-white">
@@ -232,7 +233,7 @@ export function SoloPlay({ game, variant, modes }: { game: GameLite; variant: Va
           {view.notice && <div className="text-center text-sm text-warn-400">{view.notice}</div>}
           <AnimatePresence mode="wait">
             <motion.div key={view.round.roundId} initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }} className="flex flex-col items-center gap-6">
-              <RoundPlayer round={view.round} act={act} locked={!!reveal} reveal={reveal} resume={null} />
+              <RoundPlayer round={view.round} act={act} locked={!!reveal} reveal={reveal} resume={null} balance={view.chips ? score : undefined} />
               {reveal && (
                 <>
                   <RevealPanel reveal={reveal} points={result?.points} correct={result?.correct} breakdown={result?.breakdown} timedOut={result?.timedOut} />

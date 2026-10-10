@@ -13,6 +13,9 @@ import { prismaRarityStore } from "./rarity-store";
 import { buildReveal } from "./reveal";
 import { applyGameResult, getSkill, trackEvent, updateRating, type ProgressResult } from "./progress";
 import { gameConfig } from "./game-config";
+import { applyNet, DEFAULT_STARTING_CHIPS } from "@/engine/chips";
+
+const RISK_SLUG = "risk-reward";
 
 export type Variant = "classic" | "survival" | "ranked" | "daily" | "chaos";
 
@@ -63,6 +66,9 @@ export interface SoloSession {
   createdAt: number;
   lastActive: number;
   notice?: string;
+  /** Risk & Reward: the session keeps a chip balance in `score`; reaching zero ends the run. */
+  chips: boolean;
+  bust?: boolean;
 }
 
 export interface SessionSummary {
@@ -73,6 +79,9 @@ export interface SessionSummary {
   progress: ProgressResult | null;
   rating?: { rating: number; delta: number };
   dailyRank?: number;
+  /** Risk & Reward: the run ended because the balance hit zero. */
+  bust?: boolean;
+  chips?: boolean;
 }
 
 const sessions = singleton("soloSessions", () => new Map<string, SoloSession>());
@@ -87,7 +96,7 @@ export function todayKey(d = new Date()): string {
   return d.toISOString().slice(0, 10);
 }
 
-export async function startSession(opts: { playerId: string; gameSlug: string; modes?: string[]; variant: Variant }): Promise<SoloSession> {
+export async function startSession(opts: { playerId: string; gameSlug: string; modes?: string[]; variant: Variant; startingChips?: number }): Promise<SoloSession> {
   sweep();
   const isDaily = opts.variant === "daily";
   const game = isDaily ? triviaRouletteGame : getGame(opts.gameSlug);
@@ -110,7 +119,8 @@ export async function startSession(opts: { playerId: string; gameSlug: string; m
     streak: 0,
     bestStreak: 0,
     correct: 0,
-    lives: opts.variant === "survival" ? 3 : null,
+    lives: opts.variant === "survival" && game.slug !== RISK_SLUG ? 3 : null,
+    chips: game.slug === RISK_SLUG,
     maxRarity: 0,
     qualities: [],
     memory: emptySessionMemory(),
@@ -126,6 +136,7 @@ export async function startSession(opts: { playerId: string; gameSlug: string; m
     const done = await db.dailyResult.findUnique({ where: { date_playerId: { date: todayKey(), playerId: opts.playerId } } });
     if (done) throw new Error("You've already played today's Daily Challenge — come back tomorrow!");
   }
+  if (s.chips) s.score = opts.startingChips ?? DEFAULT_STARTING_CHIPS;
   sessions.set(s.id, s);
   const match = await db.match.create({ data: { mode: `solo:${s.variant}`, gameSlug: s.gameSlug, seed } });
   s.matchId = match.id;
@@ -154,6 +165,8 @@ async function buildNextRound(s: SoloSession, game: GameDefinition) {
 }
 
 export interface RoundView {
+  /** Risk & Reward: `score` is the live chip balance. */
+  chips?: boolean;
   round: PublicRound;
   index: number;
   total: number;
@@ -169,7 +182,7 @@ export interface RoundView {
 export async function nextRound(s: SoloSession): Promise<RoundView | { finished: true; summary: SessionSummary }> {
   if (s.current && !s.current.state.done) return viewOf(s);
   if (s.finished) return { finished: true, summary: s.result! };
-  const over = (s.total > 0 && s.index + 1 >= s.total) || (s.lives !== null && s.lives <= 0) || s.index >= 49;
+  const over = (s.total > 0 && s.index + 1 >= s.total) || (s.lives !== null && s.lives <= 0) || (s.chips && s.score <= 0) || s.index >= 49;
   if (over) return { finished: true, summary: await finishSession(s) };
   const game = s.variant === "daily" ? triviaRouletteGame : getGame(s.gameSlug)!;
   const built = await buildNextRound(s, game);
@@ -177,7 +190,7 @@ export async function nextRound(s: SoloSession): Promise<RoundView | { finished:
   s.index++;
   const now = Date.now();
   let modifier: ModifierId | undefined;
-  if (s.variant === "chaos" && s.rng() < 0.55) modifier = MODIFIERS[Math.floor(s.rng() * MODIFIERS.length)].id;
+  if (s.variant === "chaos" && !s.chips && s.rng() < 0.55) modifier = MODIFIERS[Math.floor(s.rng() * MODIFIERS.length)].id;
   if (modifier === "quick") built.round.pub.timeLimitSec = Math.max(6, Math.round(built.round.pub.timeLimitSec / 2));
   const roundId = randomBytes(9).toString("base64url");
   const pub: PublicRound = { ...built.round.pub, roundId, repeat: built.repeat };
@@ -200,6 +213,7 @@ function viewOf(s: SoloSession): RoundView {
   const notice = s.notice;
   s.notice = undefined;
   return {
+    chips: s.chips || undefined,
     round: c.pub,
     index: s.index,
     total: s.total,
@@ -234,7 +248,7 @@ export async function act(s: SoloSession, roundId: string, action: Action): Prom
   if (c.state.done) return { error: "Already answered.", done: true, score: s.score, streak: s.streak, lives: s.lives, answer: c.reveal };
   const now = Date.now();
   const cfg = await gameConfig(s.gameSlug);
-  const ctx = { now, streak: s.streak, playerId: s.playerId, scoring: mergeScoring(getGame(c.round.gameSlug)?.scoring, cfg.scoring), services: { rarity: prismaRarityStore } };
+  const ctx = { now, streak: s.streak, playerId: s.playerId, scoring: mergeScoring(getGame(c.round.gameSlug)?.scoring, cfg.scoring), services: { rarity: prismaRarityStore }, balance: s.chips ? s.score : undefined };
   let result: Awaited<ReturnType<typeof applyAction>> = {};
   let timedOut = false;
   if (now > c.deadline) {
@@ -264,7 +278,8 @@ async function settle(s: SoloSession, c: CurrentRound): Promise<ActView> {
   if (c.modifier === "double") st.points *= 2;
   if (c.modifier === "jackpot") st.points = st.correct ? st.points * 3 : -50;
   if (st.breakdown) st.breakdown.total = st.points;
-  s.score = Math.max(0, s.score + st.points);
+  s.score = s.chips ? applyNet(s.score, st.points) : Math.max(0, s.score + st.points);
+  if (s.chips && s.score === 0) s.bust = true;
   if (st.correct) {
     s.streak++;
     s.correct++;
@@ -310,7 +325,7 @@ async function finishSession(s: SoloSession): Promise<SessionSummary> {
     }
   }
   await trackEvent("game_end", s.playerId, s.gameSlug, { variant: s.variant, score: s.score, rounds, durationMs: Date.now() - s.createdAt });
-  s.result = { score: s.score, correct: s.correct, rounds, bestStreak: s.bestStreak, progress, rating, dailyRank };
+  s.result = { score: s.score, correct: s.correct, rounds, bestStreak: s.bestStreak, progress, rating, dailyRank, bust: s.bust, chips: s.chips || undefined };
   return s.result;
 }
 

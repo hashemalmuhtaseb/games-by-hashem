@@ -2,7 +2,7 @@ import { CATEGORY_BY_ID, resolveAnswer, resolveDetailed } from "@/content/catego
 import { COUNTRIES, distanceKm, direction, type Country } from "@/content/datasets/countries";
 import { compact, findMatch, matchesAny, normalize } from "./normalize";
 import { clueQuality, closeness, computePoints } from "./scoring";
-import { distanceOf, parseGuess } from "./closest";
+import { distanceOf, formatNumber, parseGuess } from "./closest";
 import { checkStake, oddsForDifficulty, profitFor, wagerNet, type Odds } from "./chips";
 import { isCorrectDiagnosis, MYSTERY_BUDGET, MYSTERY_MAX_GUESSES, MYSTERY_WRONG_PENALTY, mysteryPoints } from "./games/medicine";
 import { rarityFor, answerKey, commonPointsFromProbability } from "./rarity";
@@ -112,7 +112,7 @@ const number: RoundHandler = {
       quality: q,
       speed: false,
       streak: false,
-      answerLabel: `${n.toLocaleString("en", { maximumFractionDigits: 6 })}${spec.unit ? " " + spec.unit : ""}`,
+      answerLabel: `${formatNumber(n, spec.unit)}${spec.unit ? " " + spec.unit : ""}`,
     });
     return { feedback: { quality: q } };
   },

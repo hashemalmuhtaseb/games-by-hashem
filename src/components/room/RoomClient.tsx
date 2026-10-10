@@ -11,6 +11,7 @@ import { useMe } from "@/client/me";
 import { Avatar } from "@/components/Avatar";
 import { RoundPlayer, TimerBar, type ActResponse, type Resume } from "@/components/play/Round";
 import { RevealPanel } from "@/components/play/Reveal";
+import { formatNumber } from "@/engine/closest";
 import { Lobby } from "./Lobby";
 import { Chat } from "./Chat";
 import { Scoreboard } from "./Scoreboard";
@@ -402,7 +403,7 @@ function AnswersList({ reveal, state }: { reveal: RoomReveal; state: RoomSnapsho
   const byId = new Map(state.players.map((p) => [p.id, p]));
   const numeric = results.some((r) => r.distance !== undefined);
   const unit = (reveal.extra as { unit?: string } | undefined)?.unit;
-  const fmt = (n: number) => n.toLocaleString("en", { maximumFractionDigits: 6 });
+  const fmt = (n: number) => formatNumber(n, unit);
   const sorted = numeric
     ? results.slice().sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity) || b.points - a.points)
     : results.slice().sort((a, b) => b.points - a.points);

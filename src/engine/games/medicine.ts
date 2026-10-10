@@ -156,7 +156,7 @@ function mysteryMode(id: string, label: string, specialties: string[] | null): M
         {
           c: cand,
           modeLabel: `🔬 Medical Mystery · ${c.specialty}`,
-          prompt: `${patientLine(c)}: “${c.complaint}” Investigate, then diagnose.`,
+          prompt: "Investigate the patient, then make your diagnosis.",
           timeLimitSec: ctx.timeLimitSec ?? 120,
           explanation: c.explanation,
           source: SOURCE(c),

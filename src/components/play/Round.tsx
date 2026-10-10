@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import type { Action, MediaRef, OptionPublic, PointsBreakdown, PublicRound, RevealPayload, SuggestSet } from "@/engine/types";
 import { play } from "@/client/sound";
 import { api } from "@/client/api";
+import { formatNumber } from "@/engine/closest";
 import { MediaView } from "./Media";
 
 export interface ActResponse {
@@ -359,7 +360,7 @@ function NumberKind({ round, act, locked, resume }: Ctl) {
       }}
     >
       <div className="display text-5xl font-bold text-white tabular-nums">
-        {val.toLocaleString()}
+        {formatNumber(val, spec.unit)}
         {spec.unit && <span className="ml-2 text-2xl text-ink-400">{spec.unit}</span>}
       </div>
       <input
@@ -376,8 +377,8 @@ function NumberKind({ round, act, locked, resume }: Ctl) {
         className="h-3 w-full cursor-pointer accent-brand-500"
       />
       <div className="flex w-full justify-between text-xs text-ink-400">
-        <span>{spec.min.toLocaleString()}</span>
-        <span>{spec.max.toLocaleString()}</span>
+        <span>{formatNumber(spec.min, spec.unit)}</span>
+        <span>{formatNumber(spec.max, spec.unit)}</span>
       </div>
       <div className="flex w-full gap-2">
         <input

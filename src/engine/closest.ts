@@ -8,6 +8,12 @@
 
 export const DISTANCE_DECIMALS = 6;
 
+/** Human formatting for guesses: years (1000–2999, no unit) without a thousands separator. */
+export function formatNumber(n: number, unit?: string): string {
+  if (!unit && Number.isInteger(n) && n >= 1000 && n <= 2999) return String(n);
+  return n.toLocaleString("en", { maximumFractionDigits: 6 });
+}
+
 export function roundTo(x: number, decimals = DISTANCE_DECIMALS): number {
   const f = 10 ** decimals;
   return Math.round(x * f) / f;

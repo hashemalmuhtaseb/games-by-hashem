@@ -29,7 +29,8 @@ export async function buildReveal(round: Round, services: EngineServices, answer
     // Rare ideas should still be recognisable: for fame-ranked lists, skip the deepest obscurities.
     const rare = scored.filter((x) => x.tier >= 3 && (x.fame === undefined || x.fame >= 25));
     const pickRare = rare.length ? [rare[Math.floor(Math.random() * rare.length)], rare[Math.floor(Math.random() * rare.length)], rare[Math.floor(Math.random() * rare.length)]] : [];
-    out.answerLabel = letter ? `Any valid ${cat.label.toLowerCase()} answer starting with ${letter}` : `Any valid ${cat.label.toLowerCase()} answer`;
+    const noun = cat.noun ?? `${cat.label.toLowerCase()} answer`;
+    out.answerLabel = letter ? `Any valid ${noun} starting with ${letter}` : `Any valid ${noun}`;
     if (cat.source) out.source = cat.source;
     if (letter && cat.letterRule) out.explanation = `${out.explanation ? out.explanation + " " : ""}${cat.letterRule}`;
     out.extra = {

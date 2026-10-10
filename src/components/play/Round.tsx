@@ -76,6 +76,7 @@ function OptionButton({ o, i, state, onClick, disabled }: { o: OptionPublic; i: 
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: i * 0.03, duration: 0.24, ease: [0.2, 0.8, 0.2, 1] }}
+      data-option
       whileTap={disabled ? undefined : { scale: 0.985 }}
       disabled={disabled}
       onClick={onClick}
@@ -209,6 +210,7 @@ function TextAnswer({ placeholder, onSubmit, disabled, shake, autoFocus = true, 
     >
       <input
         ref={ref}
+        data-answer
         className="min-w-0 flex-1 bg-transparent px-3 text-[17px] text-fg outline-none placeholder:text-fg-3 disabled:opacity-50"
         value={v}
         onChange={(e) => {

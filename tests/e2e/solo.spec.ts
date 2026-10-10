@@ -15,7 +15,7 @@ test("a solo flags round plays through to the reveal without leaking the answer"
     if (/\/api\/play\/(start|next)/.test(r.url())) bodies.push(await r.text());
   });
   await page.goto("/play/flags?modes=classic");
-  const options = page.locator("button.min-h-16");
+  const options = page.locator("button[data-option]");
   await expect(options.first()).toBeVisible();
   await options.first().click();
   await expect(page.getByText("Answer", { exact: true })).toBeVisible();
@@ -23,8 +23,8 @@ test("a solo flags round plays through to the reveal without leaking the answer"
   expect(answer.length).toBeGreaterThan(1);
   // The answer was only revealed after answering: the question payload never contained the correct option id marker.
   for (const b of bodies) expect(b).not.toMatch(/"(correctOptionId|accept|answerLabel)"/);
-  await page.getByText("Next →").click();
-  await expect(page.getByText(/round 2 \//i)).toBeVisible();
+  await page.getByRole("button", { name: /Next question/ }).click();
+  await expect(page.getByText(/Round 2 of/).first()).toBeVisible();
 });
 
 test("Word Forge lets you fix a typo without losing a try", async ({ page }) => {
@@ -39,7 +39,7 @@ test("Word Forge lets you fix a typo without losing a try", async ({ page }) => 
 
 test("football clue answers are focused and suggest player names as you type", async ({ page }) => {
   await page.goto("/play/football?modes=legend");
-  const input = page.locator("input.input").first();
+  const input = page.locator("input[data-answer]").first();
   await expect(input).toBeVisible();
   await expect(input).toBeFocused();
   await page.keyboard.type("me");

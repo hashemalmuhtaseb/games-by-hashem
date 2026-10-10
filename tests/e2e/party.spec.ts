@@ -15,19 +15,19 @@ test("two players play a live room: lobby, question, reveal, chat, results", asy
   const guest = await player(browser);
   await guest.goto(`/room/${code}`);
   // Both players appear in the host's lobby.
-  await expect(host.locator("text=/2\\s*\\/\\s*\\d+/").first()).toBeVisible({ timeout: 15_000 });
+  await expect(host.getByText(/^2 of \d+$/).first()).toBeVisible({ timeout: 15_000 });
 
-  await host.getByText(/▶ Start/).click();
-  for (const p of [host, guest]) await expect(p.locator("button.min-h-16").first()).toBeVisible({ timeout: 15_000 });
-  for (const p of [host, guest]) await p.locator("button.min-h-16").first().click();
+  await host.getByRole("button", { name: /^Start / }).click();
+  for (const p of [host, guest]) await expect(p.locator("button[data-option]").first()).toBeVisible({ timeout: 15_000 });
+  for (const p of [host, guest]) await p.locator("button[data-option]").first().click();
   for (const p of [host, guest]) await expect(p.getByText("Answer", { exact: true }).first()).toBeVisible({ timeout: 15_000 });
 
   // The built-in Game Master hosts by default.
   await expect(host.getByText("Game Master").first()).toBeVisible();
 
   const msg = `gg ${Date.now() % 1000}`;
-  await guest.locator("input[placeholder='Message…']").first().fill(msg);
-  await guest.locator("input[placeholder='Message…']").first().press("Enter");
+  await guest.locator("input[placeholder='Message']").first().fill(msg);
+  await guest.locator("input[placeholder='Message']").first().press("Enter");
   await expect(host.getByText(msg).first()).toBeVisible();
 
   host.on("dialog", (d) => d.accept());

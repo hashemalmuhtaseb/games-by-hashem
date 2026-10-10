@@ -18,7 +18,7 @@ export function Nav() {
   const path = usePathname();
   const [muted, setM] = useState(false);
   useEffect(() => setM(isMuted()), []);
-  if (path?.startsWith("/play/") || path?.startsWith("/room/")) return null; // immersive screens draw their own header
+  if (path?.startsWith("/play/") || path?.startsWith("/room/") || (path?.startsWith("/poker/") && path.length > 7)) return null; // immersive screens draw their own header
   return (
     <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-ink-950/70 backdrop-blur-xl">
       <nav className="mx-auto flex h-16 max-w-7xl items-center gap-1 px-4 sm:gap-6">

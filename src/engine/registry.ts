@@ -77,4 +77,6 @@ export interface GameInfo {
   soloOnly: boolean;
   modes: { id: string; label: string; description: string; available: boolean; reason?: string }[];
   questionCount: number;
+  /** Games with their own screens (Poker) link here instead of /games/<slug>. */
+  href?: string;
 }

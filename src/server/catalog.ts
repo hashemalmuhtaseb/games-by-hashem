@@ -9,9 +9,30 @@ export function invalidateCatalog() {
   cached.list = null;
 }
 
+/** Standalone games that don't use the round engine. */
+const STANDALONE: GameInfo[] = [
+  {
+    slug: "poker",
+    name: "Texas Hold'em",
+    short: "No-limit poker for 2–8 players with virtual chips. Play computer opponents or a private table with friends.",
+    icon: "♠️",
+    accent: ["#17543e", "#0f766e"],
+    group: "party",
+    original: false,
+    rules: [],
+    rounds: 0,
+    timeLimitSec: 30,
+    multiplayer: true,
+    soloOnly: false,
+    modes: [],
+    questionCount: 0,
+    href: "/poker",
+  },
+];
+
 export function catalog(): GameInfo[] {
-  return (cached.list ??=
-    allGames().map((g) => ({
+  return (cached.list ??= [
+    ...allGames().map((g) => ({
       slug: g.slug,
       name: g.name,
       short: g.short,
@@ -29,7 +50,9 @@ export function catalog(): GameInfo[] {
         return { id: m.id, label: m.label, description: m.description, available: !reason && modeCandidates(g, m).length > 0, reason: reason ?? undefined };
       }),
       questionCount: gameCandidates(g).length,
-    })));
+    })),
+    ...STANDALONE,
+  ]);
 }
 
 /** Distinct questions across every game (borrowed modes and mixes share keys, so they count once). */

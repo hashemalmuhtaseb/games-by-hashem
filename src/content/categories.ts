@@ -7,7 +7,9 @@ import {
   ANIMALS, BRANDS, CAR_BRANDS, CITIES, ELEMENTS, FICTIONAL_CHARACTERS, FOODS, FRUITS_VEG, HISTORICAL_FIGURES,
   JOBS, LANGUAGES, SPORTS, US_STATES, VIDEO_GAMES, type WordEntry,
 } from "./datasets/wordlists";
-import { compact, findMatch, type MatchCandidate } from "@/engine/normalize";
+import { compact } from "@/engine/normalize";
+import { NameIndex, type Resolution } from "@/engine/names";
+import { footballersDb, FOOTBALLERS_DB_SOURCE } from "./footballers-db";
 
 export interface Category {
   id: string;
@@ -17,6 +19,17 @@ export interface Category {
   entries: WordEntry[];
   /** Supports "starting with letter X" variants. */
   letters: boolean;
+  /** What one answer is called, for messages ("football player"). */
+  noun?: string;
+  /** Entries are people: allows reordered names ("Rojo, Marcos") and surname-only answers. */
+  person?: boolean;
+  /** -log10(probability) range mapped onto 10–100 rarity points. Larger lists need a wider range. */
+  rarityScale?: [number, number];
+  /** Pseudo-answers the prior is worth (smoothing). Long-tailed lists need more, so one early vote can't swing a score. */
+  priorStrength?: number;
+  /** Shown to players: how the starting letter is decided. */
+  letterRule?: string;
+  source?: string;
 }
 
 const EXTRA_FOOTBALLERS = `Mohamed Salah;Kevin De Bruyne;Luis Figo;Xavi;Gareth Bale;Sergio Busquets;Gerard Piqué|Pique;Jordi Alba;David Villa;Fernando Torres;Cesc Fàbregas|Fabregas;Xabi Alonso;David Silva;Paul Pogba|Pogba;Antoine Griezmann;Hugo Lloris|Lloris;Raphaël Varane|Varane;Olivier Giroud|Giroud;Franck Ribéry|Ribery;Thomas Müller|Thomas Muller;Bastian Schweinsteiger|Schweinsteiger;Mats Hummels|Hummels;Marco Reus|Reus;İlkay Gündoğan|Gundogan;Leroy Sané|Sane;Joshua Kimmich|Kimmich;Kai Havertz|Havertz;Ederson;Casemiro;Marcelo;Thiago Silva;Raphinha;Rodrygo;Endrick;Gabriel Jesus;Richarlison;Philippe Coutinho|Coutinho;Willian;Oscar;Hulk;Paulo Dybala|Dybala;Gonzalo Higuaín|Higuain;Javier Mascherano|Mascherano;Juan Román Riquelme|Riquelme;Gabriel Batistuta|Batistuta;Carlos Tevez|Tevez;Diego Forlán|Forlan;Radamel Falcao|Falcao;James Rodríguez|James Rodriguez;Carlos Valderrama|Valderrama;Luis Díaz|Luis Diaz;Alexis Sánchez|Alexis Sanchez;Arturo Vidal|Vidal;Christian Pulisic|Pulisic;Landon Donovan;Clint Dempsey;Alphonso Davies;Hirving Lozano|Chucky Lozano;Javier Hernández|Chicharito;Rafael Márquez;Hugo Sánchez;Kaoru Mitoma|Mitoma;Takefusa Kubo|Kubo;Hidetoshi Nakata|Nakata;Park Ji-sung;Kim Min-jae;Mehdi Taremi|Taremi;Sardar Azmoun|Azmoun;Ali Daei;Hakim Ziyech|Ziyech;Sofyan Amrabat|Amrabat;Youssef En-Nesyri|En-Nesyri;Noussair Mazraoui|Mazraoui;Brahim Díaz|Brahim Diaz;Ismaël Bennacer|Bennacer;Islam Slimani;Rabah Madjer;Lakhdar Belloumi;Omar Marmoush|Marmoush;Mohamed Elneny|Elneny;Ahmed Hassan;Hossam Hassan;Mido;Mahmoud Trezeguet|Trezeguet;Mostafa Mohamed;Wahbi Khazri;Youssef Msakni;Akram Afif;Almoez Ali;Hassan Al-Haydos;Omar Abdulrahman|Amoory;Ali Mabkhout;Yasser Al-Qahtani;Nawaf Al-Abed;Saud Abdulhamid;Firas Al-Buraikan;Mohammed Al-Owais;Abdullah Al-Hamdan;Hattan Bahebri;Mohammed Kanno;Salman Al-Faraj;Yasser Al-Shahrani;Ali Al-Bulaihi;Nasser Al-Shamrani;Mohamed Noor;Hussein Abdulghani;Jay-Jay Okocha|Okocha;Nwankwo Kanu|Kanu;Victor Moses;Wilfred Ndidi|Ndidi;Ademola Lookman|Lookman;Alex Iwobi|Iwobi;Mikel John Obi|John Obi Mikel;Kolo Touré|Kolo Toure;Gervinho;Wilfried Zaha|Zaha;Sébastien Haller|Haller;Franck Kessié|Kessie;Nicolas Pépé|Pepe;Michael Essien|Essien;Asamoah Gyan|Gyan;Thomas Partey|Partey;Mohammed Kudus|Kudus;Jordan Ayew;André Ayew;Abedi Pelé;Roger Milla|Milla;André Onana|Onana;Vincent Aboubakar|Aboubakar;Bryan Mbeumo|Mbeumo;Eric Maxim Choupo-Moting|Choupo-Moting;El Hadji Diouf;Idrissa Gueye|Gana Gueye;Nicolas Jackson;Edouard Mendy;Ismaila Sarr;Benni McCarthy;Steven Pienaar;Lucas Radebe;Emmanuel Adebayor|Adebayor;Frédéric Kanouté|Kanoute;Seydou Keita;Yves Bissouma|Bissouma;Naby Keïta|Naby Keita;Serhou Guirassy|Guirassy;Pierre-Emerick Aubameyang|Aubameyang;Denis Bouanga;Jude Bellingham;Cole Palmer|Palmer;Jack Grealish|Grealish;Raheem Sterling|Sterling;John Stones|Stones;Kyle Walker;Jordan Pickford|Pickford;Harry Maguire|Maguire;Jordan Henderson;Mason Mount|Mount;Jadon Sancho|Sancho;Ollie Watkins|Watkins;Jamie Vardy|Vardy;Kieran Trippier|Trippier;Luke Shaw;Ashley Cole;John Terry|Terry;Rio Ferdinand|Ferdinand;Sol Campbell;Gary Neville;Paul Scholes|Scholes;Ryan Giggs|Giggs;Peter Crouch|Crouch;Jermain Defoe|Defoe;Robbie Fowler|Fowler;Ian Wright;Les Ferdinand;Teddy Sheringham;Andy Cole;Dwight Yorke;Gary Lineker|Lineker;Bobby Charlton;Bobby Moore;Geoff Hurst;Kevin Keegan|Keegan;Paul Gascoigne|Gazza;Stuart Pearce;Tony Adams;Patrick Vieira|Vieira;Robert Pirès|Pires;Claude Makélélé|Makelele;Lilian Thuram|Thuram;Marcel Desailly|Desailly;Laurent Blanc;Fabien Barthez|Barthez;David Trezeguet;Jean-Pierre Papin|Papin;Michel Platini|Platini;Just Fontaine;Raymond Kopa;Kingsley Coman|Coman;Theo Hernández|Theo Hernandez;Lucas Hernández;William Saliba|Saliba;Aurélien Tchouaméni|Tchouameni;Eduardo Camavinga|Camavinga;Mike Maignan|Maignan;Marcus Thuram;Randal Kolo Muani|Kolo Muani;Bradley Barcola|Barcola;Désiré Doué|Doue;Warren Zaïre-Emery|Zaire-Emery;Rafael Leão|Rafael Leao;João Félix|Joao Felix;João Cancelo|Joao Cancelo;Diogo Jota|Jota;Pepe;Ricardo Carvalho;Deco;Nuno Gomes;Rui Costa;Vitinha;João Neves|Joao Neves;Nuno Mendes;Gonçalo Ramos|Goncalo Ramos;Rúben Dias|Ruben Dias;Andrea Pirlo;Gennaro Gattuso|Gattuso;Alessandro Nesta|Nesta;Filippo Inzaghi|Inzaghi;Christian Vieri|Vieri;Gianluca Vialli|Vialli;Roberto Mancini;Giorgio Chiellini|Chiellini;Leonardo Bonucci|Bonucci;Ciro Immobile|Immobile;Lorenzo Insigne|Insigne;Marco Verratti|Verratti;Federico Chiesa|Chiesa;Nicolò Barella|Barella;Sandro Tonali|Tonali;Gianluigi Donnarumma|Donnarumma;Dino Zoff|Zoff;Paolo Rossi;Franco Baresi|Baresi;Giuseppe Meazza|Meazza;Mario Balotelli|Balotelli;Antonio Cassano|Cassano;Alessandro Costacurta;Dejan Stanković;Nemanja Vidić|Vidic;Branislav Ivanović|Ivanovic;Dušan Vlahović|Vlahovic;Dušan Tadić|Tadic;Ivan Rakitić|Rakitic;Mario Mandžukić|Mandzukic;Ivan Perišić|Perisic;Davor Šuker|Suker;Joško Gvardiol|Gvardiol;Mateo Kovačić|Kovacic;Edin Džeko|Dzeko;Miralem Pjanić|Pjanic;Hakan Çalhanoğlu|Calhanoglu;Arda Güler|Arda Guler;Arda Turan;Hakan Şükür|Hakan Sukur;Kenan Yıldız|Kenan Yildiz;Gheorghe Hagi|Hagi;Hristo Stoichkov|Stoichkov;Dimitar Berbatov|Berbatov;Gheorghe Popescu;Robert Prosinečki;Tomáš Rosický|Rosicky;Patrik Schick|Schick;Marek Hamšík|Hamsik;Martin Škrtel|Skrtel;Jakub Błaszczykowski;Wojciech Szczęsny|Szczesny;Piotr Zieliński|Zielinski;Grzegorz Lato;Zbigniew Boniek|Boniek;Ferenc Puskás|Puskas;Dominik Szoboszlai|Szoboszlai;Lev Yashin|Yashin;Andrei Arshavin|Arshavin;Oleg Blokhin|Blokhin;Mykhailo Mudryk|Mudryk;Oleksandr Zinchenko|Zinchenko;Henrik Larsson|Larsson;Fredrik Ljungberg|Ljungberg;Alexander Isak|Isak;Viktor Gyökeres|Gyokeres;Dejan Kulusevski|Kulusevski;Christian Eriksen|Eriksen;Peter Schmeichel|Schmeichel;Kasper Schmeichel;Michael Laudrup|Laudrup;Brian Laudrup;Rasmus Højlund|Hojlund;Ole Gunnar Solskjær|Solskjaer;John Arne Riise|Riise;Sami Hyypiä|Hyypia;Jari Litmanen|Litmanen;Eiður Guðjohnsen|Eidur Gudjohnsen;Gylfi Sigurðsson|Gylfi Sigurdsson;Ruud van Nistelrooy|Van Nistelrooy;Robin van Persie|Van Persie;Clarence Seedorf|Seedorf;Edgar Davids|Davids;Patrick Kluivert|Kluivert;Frank de Boer;Ronald Koeman|Koeman;Frank Rijkaard|Rijkaard;Ruud Gullit|Gullit;Edwin van der Sar|Van der Sar;Frenkie de Jong|De Jong;Matthijs de Ligt|De Ligt;Memphis Depay|Memphis;Cody Gakpo|Gakpo;Xavi Simons;Jeremie Frimpong|Frimpong;Romelu Lukaku|Lukaku;Vincent Kompany|Kompany;Jan Vertonghen|Vertonghen;Toby Alderweireld;Axel Witsel|Witsel;Dries Mertens|Mertens;Youri Tielemans|Tielemans;Jérémy Doku|Doku;Leandro Trossard|Trossard;Enzo Scifo|Scifo;Jan Ceulemans;Thomas Vermaelen;Jürgen Klinsmann|Klinsmann;Gerd Müller|Gerd Muller;Rudi Völler|Voller;Karl-Heinz Rummenigge|Rummenigge;Oliver Kahn|Kahn;Michael Ballack|Ballack;Jens Lehmann;Per Mertesacker|Mertesacker;Jérôme Boateng|Boateng;Mario Götze|Gotze;Marc-André ter Stegen|Ter Stegen;Antonio Rüdiger|Rudiger;Granit Xhaka|Xhaka;Xherdan Shaqiri|Shaqiri;Yann Sommer|Sommer;Manuel Akanji|Akanji;Martin Ødegaard;Alexis Mac Allister|Mac Allister;Enzo Fernández|Enzo Fernandez;Rodrigo De Paul|De Paul;Nicolás Otamendi|Otamendi;Cristian Romero|Cuti Romero;Gabriel Heinze|Heinze;Hernán Crespo|Crespo;Juan Sebastián Verón|Veron;Pablo Aimar|Aimar;Ariel Ortega|Ortega;Mario Kempes|Kempes;Alfredo Di Stéfano|Di Stefano;Darwin Núñez|Darwin Nunez;Ronald Araújo|Araujo;Diego Godín|Godin;José María Giménez|Gimenez;Enzo Francescoli|Francescoli;Óscar Tabárez;Roque Santa Cruz;José Luis Chilavert|Chilavert;Claudio Bravo;Iván Zamorano|Zamorano;Marcelo Salas|Salas;Arturo Vidal;Paolo Guerrero|Guerrero;Teófilo Cubillas;Moisés Caicedo|Caicedo;Enner Valencia;Antonio Valencia;Alberto Spencer;Keylor Navas|Navas;Bryan Ruiz;Romário|Romario;Bebeto;Zico;Sócrates|Socrates;Garrincha;Rivelino;Jairzinho;Careca;Taffarel;Dida;Júlio César|Julio Cesar;Adriano;Robinho;Lúcio|Lucio;Juninho Pernambucano|Juninho;Gilberto Silva;Fernandinho;Paulinho;Gabriel Martinelli|Martinelli;Bruno Guimarães|Bruno Guimaraes;Lucas Paquetá|Paqueta;Éder Militão|Militao;Marquinhos;Antony;Gabriel Magalhães|Gabriel;Raúl Jiménez|Raul Jimenez;Andrés Guardado|Guardado;Guillermo Ochoa|Memo Ochoa;Cuauhtémoc Blanco|Cuauhtemoc Blanco;Jorge Campos;Tim Cahill|Cahill;Harry Kewell|Kewell;Mark Viduka|Viduka;Mathew Ryan;Mile Jedinak;Sam Kerr;Alex Morgan;Megan Rapinoe|Rapinoe;Marta;Abby Wambach|Wambach;Mia Hamm;Alexia Putellas|Putellas;Aitana Bonmatí|Aitana Bonmati;Ada Hegerberg|Hegerberg;Lucy Bronze;Beth Mead;Alessia Russo;Chloe Kelly;Vivianne Miedema|Miedema;Lieke Martens;Wendie Renard;Eugénie Le Sommer|Le Sommer;Pernille Harder|Harder;Fridolina Rolfö|Rolfo;Asisat Oshoala|Oshoala;Linda Caicedo;Mary Earps|Earps;Hope Solo;Carli Lloyd;Christine Sinclair|Sinclair;Formiga;Homare Sawa|Sawa`;
@@ -99,64 +112,151 @@ const famousPeople: WordEntry[] = [
   ...FOOTBALLERS.map((p) => ({ name: p.name, aliases: p.aliases ?? [], tier: Math.min(4, p.difficulty + 1) as WordEntry["tier"] })),
 ];
 
-const footballerEntries: WordEntry[] = [
-  ...fromRecords(FOOTBALLERS, (p) => p.name, (p) => p.aliases ?? [], (p) => p.difficulty),
-  ...parseFlat(EXTRA_FOOTBALLERS, 3),
+/**
+ * Football players: the hand-checked list (tiers reflect how often people say them) merged with
+ * the verified Wikidata list of ~150k players. Entries are matched on their exact name only, never
+ * on an alias, so two different people are never merged.
+ */
+function footballerEntries(): WordEntry[] {
+  const curated = dedupe([...fromRecords(FOOTBALLERS, (p) => p.name, (p) => p.aliases ?? [], (p) => p.difficulty), ...parseFlat(EXTRA_FOOTBALLERS, 3)]);
+  const byName = new Map(curated.map((e) => [compact(e.name), e]));
+  const out: WordEntry[] = [...curated];
+  for (const p of footballersDb()) {
+    const key = compact(p.name);
+    const hit = byName.get(key);
+    if (hit) {
+      // Same name as a curated entry: the most famous Wikidata item supplies fame and aliases.
+      if ((hit.fame ?? -1) < p.fame) {
+        hit.fame = p.fame;
+        for (const a of p.aliases) if (!hit.aliases.includes(a) && compact(a) !== key) hit.aliases.push(a);
+      }
+      continue;
+    }
+    const e: WordEntry = { name: p.name, aliases: p.aliases, tier: p.fame >= 40 ? 3 : 4, fame: p.fame };
+    byName.set(key, e);
+    out.push(e);
+  }
+  return out;
+}
+
+interface CategoryDef extends Omit<Category, "entries"> {
+  entries: WordEntry[] | (() => WordEntry[]);
+}
+
+const DEFS: CategoryDef[] = [
+  { id: "animals", label: "Animals", prompt: "Name an animal", icon: "🦁", entries: ANIMALS, letters: true, noun: "animal" },
+  { id: "countries", label: "Countries", prompt: "Name a country", icon: "🌍", entries: countryEntries, letters: true, noun: "country" },
+  { id: "capitals", label: "Capital cities", prompt: "Name a capital city", icon: "🏛️", entries: capitalEntries, letters: true, noun: "capital city" },
+  { id: "cities", label: "Cities", prompt: "Name a city", icon: "🏙️", entries: [...CITIES, ...capitalEntries], letters: true, noun: "city" },
+  { id: "foods", label: "Foods & dishes", prompt: "Name a food or dish", icon: "🍕", entries: FOODS, letters: true, noun: "food or dish" },
+  { id: "fruitveg", label: "Fruits & vegetables", prompt: "Name a fruit or vegetable", icon: "🥕", entries: FRUITS_VEG, letters: true, noun: "fruit or vegetable" },
+  { id: "carbrands", label: "Car brands", prompt: "Name a car manufacturer", icon: "🏎️", entries: CAR_BRANDS, letters: true, noun: "car brand" },
+  { id: "brands", label: "Brands", prompt: "Name a famous brand", icon: "🏷️", entries: BRANDS, letters: true, noun: "brand" },
+  { id: "musicians", label: "Musical artists", prompt: "Name a musical artist or band", icon: "🎤", entries: musicianSet, letters: true, noun: "musical artist", person: true },
+  { id: "actors", label: "Actors", prompt: "Name an actor or actress", icon: "🎭", entries: actorEntries, letters: true, noun: "actor", person: true },
+  { id: "movies", label: "Movies", prompt: "Name a movie", icon: "🎬", entries: fromRecords(MOVIES, (m) => m.title, (m) => m.aliases ?? [], (m) => m.difficulty), letters: true, noun: "movie" },
+  {
+    id: "footballers",
+    label: "Football players",
+    prompt: "Name a football player",
+    icon: "⚽",
+    entries: footballerEntries,
+    letters: true,
+    noun: "football player",
+    person: true,
+    rarityScale: [1.2, 6.2],
+    priorStrength: 2000,
+    letterRule: "The letter is the first letter of the player's name as it's usually written (Mohamed Salah → M, Marcos Rojo → M).",
+    source: FOOTBALLERS_DB_SOURCE,
+  },
+  { id: "videogames", label: "Video games", prompt: "Name a video game", icon: "🎮", entries: VIDEO_GAMES, letters: true, noun: "video game" },
+  { id: "fictional", label: "Fictional characters", prompt: "Name a fictional character", icon: "🦸", entries: FICTIONAL_CHARACTERS, letters: true, noun: "fictional character" },
+  { id: "historical", label: "Historical figures", prompt: "Name a historical figure", icon: "📜", entries: HISTORICAL_FIGURES, letters: true, noun: "historical figure", person: true },
+  { id: "famous", label: "Famous people", prompt: "Name a famous person", icon: "⭐", entries: famousPeople, letters: true, noun: "famous person", person: true },
+  { id: "sports", label: "Sports", prompt: "Name a sport", icon: "🏅", entries: SPORTS, letters: true, noun: "sport" },
+  { id: "elements", label: "Chemical elements", prompt: "Name a chemical element", icon: "⚗️", entries: ELEMENTS, letters: true, noun: "chemical element" },
+  { id: "jobs", label: "Jobs", prompt: "Name a job or profession", icon: "👷", entries: JOBS, letters: true, noun: "job" },
+  { id: "languages", label: "Languages", prompt: "Name a language", icon: "🗣️", entries: LANGUAGES, letters: true, noun: "language" },
+  { id: "usstates", label: "US states", prompt: "Name a US state", icon: "🇺🇸", entries: US_STATES, letters: true, noun: "US state" },
 ];
 
-export const CATEGORIES: Category[] = [
-  { id: "animals", label: "Animals", prompt: "Name an animal", icon: "🦁", entries: ANIMALS, letters: true },
-  { id: "countries", label: "Countries", prompt: "Name a country", icon: "🌍", entries: countryEntries, letters: true },
-  { id: "capitals", label: "Capital cities", prompt: "Name a capital city", icon: "🏛️", entries: capitalEntries, letters: true },
-  { id: "cities", label: "Cities", prompt: "Name a city", icon: "🏙️", entries: [...CITIES, ...capitalEntries], letters: true },
-  { id: "foods", label: "Foods & dishes", prompt: "Name a food or dish", icon: "🍕", entries: FOODS, letters: true },
-  { id: "fruitveg", label: "Fruits & vegetables", prompt: "Name a fruit or vegetable", icon: "🥕", entries: FRUITS_VEG, letters: true },
-  { id: "carbrands", label: "Car brands", prompt: "Name a car manufacturer", icon: "🏎️", entries: CAR_BRANDS, letters: true },
-  { id: "brands", label: "Brands", prompt: "Name a famous brand", icon: "🏷️", entries: BRANDS, letters: true },
-  { id: "musicians", label: "Musical artists", prompt: "Name a musical artist or band", icon: "🎤", entries: musicianSet, letters: true },
-  { id: "actors", label: "Actors", prompt: "Name an actor or actress", icon: "🎭", entries: actorEntries, letters: true },
-  { id: "movies", label: "Movies", prompt: "Name a movie", icon: "🎬", entries: fromRecords(MOVIES, (m) => m.title, (m) => m.aliases ?? [], (m) => m.difficulty), letters: true },
-  { id: "footballers", label: "Football players", prompt: "Name a football player", icon: "⚽", entries: footballerEntries, letters: true },
-  { id: "videogames", label: "Video games", prompt: "Name a video game", icon: "🎮", entries: VIDEO_GAMES, letters: true },
-  { id: "fictional", label: "Fictional characters", prompt: "Name a fictional character", icon: "🦸", entries: FICTIONAL_CHARACTERS, letters: true },
-  { id: "historical", label: "Historical figures", prompt: "Name a historical figure", icon: "📜", entries: HISTORICAL_FIGURES, letters: true },
-  { id: "famous", label: "Famous people", prompt: "Name a famous person", icon: "⭐", entries: famousPeople, letters: true },
-  { id: "sports", label: "Sports", prompt: "Name a sport", icon: "🏅", entries: SPORTS, letters: true },
-  { id: "elements", label: "Chemical elements", prompt: "Name a chemical element", icon: "⚗️", entries: ELEMENTS, letters: true },
-  { id: "jobs", label: "Jobs", prompt: "Name a job or profession", icon: "👷", entries: JOBS, letters: true },
-  { id: "languages", label: "Languages", prompt: "Name a language", icon: "🗣️", entries: LANGUAGES, letters: true },
-  { id: "usstates", label: "US states", prompt: "Name a US state", icon: "🇺🇸", entries: US_STATES, letters: true },
-].map((c) => ({ ...c, entries: dedupe(c.entries) }));
+function makeCategory(d: CategoryDef): Category {
+  const { entries, ...rest } = d;
+  let cached: WordEntry[] | null = typeof entries === "function" ? null : dedupe(entries);
+  const build = typeof entries === "function" ? entries : null;
+  const cat = { ...rest } as Category;
+  // Big lists (footballers) load on first use rather than at import.
+  Object.defineProperty(cat, "entries", { enumerable: true, get: () => (cached ??= build!()) });
+  return cat;
+}
+
+export const CATEGORIES: Category[] = DEFS.map(makeCategory);
 
 export const CATEGORY_BY_ID = new Map(CATEGORIES.map((c) => [c.id, c]));
 
-const matcherCache = new Map<string, MatchCandidate<WordEntry>[]>();
+const indexCache = new Map<string, NameIndex<WordEntry>>();
 
-export function categoryMatchers(cat: Category): MatchCandidate<WordEntry>[] {
-  let m = matcherCache.get(cat.id);
-  if (!m) {
-    m = cat.entries.map((e) => ({ value: e, names: [e.name, ...e.aliases] }));
-    matcherCache.set(cat.id, m);
+export function categoryIndex(cat: Category): NameIndex<WordEntry> {
+  let ix = indexCache.get(cat.id);
+  if (!ix) {
+    ix = new NameIndex(cat.entries, { person: !!cat.person, noun: cat.noun ?? "answer" });
+    indexCache.set(cat.id, ix);
   }
-  return m;
+  return ix;
 }
 
-/** Resolve a free-text answer to a canonical entry in a category (handles typos, aliases, accents). */
+/**
+ * Full resolution of a typed answer, optionally restricted to a starting letter. Returns whether it
+ * matched exactly, was corrected from a clear typo, needs the player to pick a suggestion, or is not
+ * in the verified list (with a human-readable reason).
+ */
+export function resolveDetailed(cat: Category, input: string, letter?: string): Resolution<WordEntry> {
+  const ix = categoryIndex(cat);
+  const r = ix.resolve(input, letter ? (e) => entryLetter(e) === letter : undefined);
+  if (r.status === "none" && letter) {
+    // Explain a letter miss precisely: the answer is real, it just starts with another letter.
+    const any = ix.resolve(input);
+    if (any.status === "exact" || any.status === "corrected") return { status: "none", reason: `${any.entry.name} is a valid ${cat.noun ?? "answer"}, but it starts with ${firstLetter(any.entry.name)}, not ${letter}.` };
+  }
+  return r;
+}
+
+/** Resolve a free-text answer to a canonical entry (exact, alias, reordered, surname or clear typo). */
 export function resolveAnswer(cat: Category, input: string): WordEntry | null {
-  const r = findMatch(input, categoryMatchers(cat));
-  return r ? r.value : null;
+  const r = categoryIndex(cat).resolve(input);
+  return r.status === "exact" || r.status === "corrected" ? r.entry : null;
 }
 
+/** First letter of the display name's first word, accents removed (Özil → O). */
 export function firstLetter(name: string): string {
   return compact(name).charAt(0).toUpperCase();
 }
 
+const letterCache = new WeakMap<WordEntry, string>();
+
+/** firstLetter() of an entry's name, memoised (big lists are filtered by letter on every round). */
+export function entryLetter(e: WordEntry): string {
+  let l = letterCache.get(e);
+  if (l === undefined) {
+    l = firstLetter(e.name);
+    letterCache.set(e, l);
+  }
+  return l;
+}
+
+const letterCountCache = new Map<string, Map<string, number>>();
+
+export function letterCount(cat: Category, letter: string): number {
+  let m = letterCountCache.get(cat.id);
+  if (!m) {
+    m = new Map();
+    for (const e of cat.entries) m.set(entryLetter(e), (m.get(entryLetter(e)) ?? 0) + 1);
+    letterCountCache.set(cat.id, m);
+  }
+  return m.get(letter) ?? 0;
+}
+
 /** Letters that have at least `min` valid answers in a category. */
 export function viableLetters(cat: Category, min: number): string[] {
-  const counts = new Map<string, number>();
-  for (const e of cat.entries) {
-    const l = firstLetter(e.name);
-    if (/[A-Z]/.test(l)) counts.set(l, (counts.get(l) ?? 0) + 1);
-  }
-  return [...counts.entries()].filter(([, n]) => n >= min).map(([l]) => l);
+  return "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").filter((l) => letterCount(cat, l) >= min);
 }

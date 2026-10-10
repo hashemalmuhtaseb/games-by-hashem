@@ -10,6 +10,8 @@ export interface WordEntry {
   name: string;
   aliases: string[];
   tier: 1 | 2 | 3 | 4;
+  /** Fame signal (Wikipedia sitelinks) where the list comes from Wikidata; drives the rarity prior. */
+  fame?: number;
 }
 
 function parse(tiers: [string, string, string, string?]): WordEntry[] {

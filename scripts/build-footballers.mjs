@@ -8,9 +8,8 @@
  * (Q937857) and who has articles on at least MIN_SITELINKS Wikimedia sites. That bar keeps the list
  * to notable players (professionals, internationals, historic players) and excludes stubs.
  *
- * Columns: qid, English name, English aliases (|-separated), sitelinks, birth year, retired flag
- * (1 when Wikidata records a date of death or the player was born before 1980), given-name
- * initial-able display name. Sitelinks are used as a fame signal for the rarity prior.
+ * Columns: qid, display name (English label, else the multilingual "mul" label), aliases
+ * (|-separated), sitelinks, birth year, death year. Sitelinks are a fame signal for the rarity prior.
  */
 import { writeFileSync, mkdirSync } from "node:fs";
 import { gzipSync } from "node:zlib";
@@ -49,7 +48,7 @@ for (const [lo, hi] of BANDS) {
   const rows = await sparql(`SELECT ?p ?label ?l ?born ?died WHERE {
     ?p wdt:P106 wd:Q937857 ; wikibase:sitelinks ?l .
     FILTER(?l >= ${lo} && ?l <= ${hi})
-    ?p rdfs:label ?label . FILTER(LANG(?label) = "en")
+    ?p rdfs:label ?label . FILTER(LANG(?label) = "en" || LANG(?label) = "mul")
     OPTIONAL { ?p wdt:P569 ?b . BIND(YEAR(?b) AS ?born) }
     OPTIONAL { ?p wdt:P570 ?d . BIND(YEAR(?d) AS ?died) }
   }`);
@@ -58,7 +57,13 @@ for (const [lo, hi] of BANDS) {
     const prev = players.get(id);
     const name = lit(label);
     if (!name || /^Q\d+$/.test(name)) continue;
-    players.set(id, { id, name, aliases: prev?.aliases ?? [], links: Number(l), born: born ? Number(born) : prev?.born ?? null, died: died ? Number(died) : prev?.died ?? null });
+    // Many items now carry only a language-neutral "mul" label; an English label wins when both exist.
+    const isEn = /@en$/.test(label);
+    const keepName = prev && (prev.en || !isEn) ? prev.name : name;
+    const aliases = prev?.aliases ?? [];
+    if (prev && keepName !== name && !aliases.includes(name)) aliases.push(name);
+    if (prev && keepName === name && prev.name !== name && !aliases.includes(prev.name)) aliases.push(prev.name);
+    players.set(id, { id, name: keepName, en: !!(prev?.en || isEn), aliases, links: Number(l), born: born ? Number(born) : prev?.born ?? null, died: died ? Number(died) : prev?.died ?? null });
   }
   console.log(`sitelinks ${lo}-${hi}: ${rows.length} rows, ${players.size} players`);
   await new Promise((r) => setTimeout(r, 1500));
@@ -68,13 +73,13 @@ for (const [lo, hi] of BANDS) {
   const rows = await sparql(`SELECT ?p ?alias WHERE {
     ?p wdt:P106 wd:Q937857 ; wikibase:sitelinks ?l .
     FILTER(?l >= ${lo} && ?l <= ${hi})
-    ?p skos:altLabel ?alias . FILTER(LANG(?alias) = "en")
+    ?p skos:altLabel ?alias . FILTER(LANG(?alias) = "en" || LANG(?alias) = "mul")
   }`);
   for (const [p, alias] of rows) {
     const pl = players.get(qid(p));
     const a = lit(alias);
     // Skip junk aliases: very long strings, ones with digits or brackets.
-    if (pl && a && a.length <= 40 && !/[\d()[\]]/.test(a) && a !== pl.name && !pl.aliases.includes(a)) pl.aliases.push(a);
+    if (pl && a && a.length <= 40 && !/[\d()[\]:;/@]/.test(a) && !/(.)\1\1\1/.test(a) && a !== pl.name && !pl.aliases.includes(a)) pl.aliases.push(a);
   }
   console.log(`aliases ${lo}-${hi}: ${rows.length}`);
   await new Promise((r) => setTimeout(r, 1500));

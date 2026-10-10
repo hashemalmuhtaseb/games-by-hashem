@@ -1,4 +1,4 @@
-import { CATEGORY_BY_ID } from "@/content/categories";
+import { CATEGORY_BY_ID, entryLetter } from "@/content/categories";
 import { priors, posterior, pointsFromProbability, answerKey } from "@/engine/rarity";
 import type { EngineServices, RevealPayload, Round } from "@/engine/types";
 
@@ -19,16 +19,19 @@ export async function buildReveal(round: Round, services: EngineServices, answer
     const letter = s.data?.letter as string | undefined;
     const stats = await services.rarity.stats(cat.id);
     const pr = priors(cat);
-    const eligible = cat.entries.filter((e) => !letter || e.name.toUpperCase().startsWith(letter));
+    const eligible = cat.entries.filter((e) => !letter || entryLetter(e) === letter);
     const scored = eligible.map((e) => {
       const k = answerKey(e);
-      const p = posterior(pr.get(k) ?? 0, stats.counts.get(k) ?? 0, stats.total);
-      return { name: e.name, p, points: pointsFromProbability(p), tier: e.tier };
+      const p = posterior(pr.get(k) ?? 0, stats.counts.get(k) ?? 0, stats.total, cat.priorStrength);
+      return { name: e.name, p, points: pointsFromProbability(p, cat.rarityScale), tier: e.tier, fame: e.fame };
     });
     scored.sort((a, b) => b.p - a.p);
-    const rare = scored.filter((x) => x.tier >= 3);
+    // Rare ideas should still be recognisable: for fame-ranked lists, skip the deepest obscurities.
+    const rare = scored.filter((x) => x.tier >= 3 && (x.fame === undefined || x.fame >= 25));
     const pickRare = rare.length ? [rare[Math.floor(Math.random() * rare.length)], rare[Math.floor(Math.random() * rare.length)], rare[Math.floor(Math.random() * rare.length)]] : [];
     out.answerLabel = letter ? `Any valid ${cat.label.toLowerCase()} answer starting with ${letter}` : `Any valid ${cat.label.toLowerCase()} answer`;
+    if (cat.source) out.source = cat.source;
+    if (letter && cat.letterRule) out.explanation = `${out.explanation ? out.explanation + " " : ""}${cat.letterRule}`;
     out.extra = {
       mostCommon: scored.slice(0, 6).map((x) => ({ name: x.name, points: x.points, percent: Math.round(x.p * 1000) / 10 })),
       rareIdeas: [...new Map(pickRare.map((x) => [x.name, x])).values()].map((x) => ({ name: x.name, points: x.points })),

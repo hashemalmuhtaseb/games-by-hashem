@@ -1,4 +1,4 @@
-import { CATEGORY_BY_ID, resolveAnswer, firstLetter } from "@/content/categories";
+import { CATEGORY_BY_ID, resolveAnswer, resolveDetailed } from "@/content/categories";
 import { COUNTRIES, distanceKm, direction, type Country } from "@/content/datasets/countries";
 import { compact, findMatch, matchesAny, normalize } from "./normalize";
 import { clueQuality, closeness, computePoints } from "./scoring";
@@ -285,12 +285,17 @@ const multi: RoundHandler = {
       canonical = m?.value ?? null;
     } else if (sd.categoryId) {
       const cat = CATEGORY_BY_ID.get(sd.categoryId)!;
-      const e = resolveAnswer(cat, v);
-      if (e && (!sd.letter || firstLetter(e.name) === sd.letter)) canonical = e.name;
+      const r = resolveDetailed(cat, v, sd.letter);
+      if (r.status === "suggest") return { feedback: { accepted: false, suggest: r.suggestions.map((e) => e.name), reason: r.reason } };
+      if (r.status === "none") {
+        data.invalid++;
+        return { feedback: { accepted: false, reason: r.reason } };
+      }
+      canonical = r.entry.name;
     }
     if (!canonical) {
       data.invalid++;
-      return { feedback: { accepted: false, reason: "not recognised" } };
+      return { feedback: { accepted: false, reason: "Not one of the valid answers." } };
     }
     if (data.found.includes(canonical)) return { feedback: { accepted: false, reason: "already counted", canonical } };
     data.found.push(canonical);
@@ -313,13 +318,22 @@ const rare: RoundHandler = {
     if (!v) return { error: "empty answer" };
     const sd = round.secret.data as { categoryId: string; letter?: string };
     const cat = CATEGORY_BY_ID.get(sd.categoryId)!;
-    const e = resolveAnswer(cat, v);
-    if (!e || (sd.letter && firstLetter(e.name) !== sd.letter)) {
+    const res = resolveDetailed(cat, v, sd.letter);
+    if (res.status === "suggest") {
+      // Not sure which answer was meant: ask instead of rejecting. Picking a suggestion resubmits it
+      // exactly. After a few unresolved tries the answer counts as invalid.
+      const asked = ((state.data.suggestions as number) ?? 0) + 1;
+      state.data.suggestions = asked;
+      if (asked <= 3) return { feedback: { valid: null, suggest: res.suggestions.map((x) => x.name), reason: res.reason } };
+    }
+    if (res.status !== "exact" && res.status !== "corrected") {
       // Invalid answers lose points; fabricated words never score.
       state.data.answerKey = null;
+      state.data.rejectReason = res.status === "none" ? res.reason : "Not a clear match for any verified answer.";
       finish(round, state, ctx, { correct: false, fixedPoints: -10, answerLabel: v });
-      return { feedback: { valid: false } };
+      return { feedback: { valid: false, reason: state.data.rejectReason, answer: v } };
     }
+    const e = res.entry;
     const stats = await ctx.services.rarity.stats(cat.id);
     const r = rarityFor(cat, e, stats);
     // Hive Mind scores the opposite way: popular answers win.
@@ -329,7 +343,7 @@ const rare: RoundHandler = {
     state.data.canonical = e.name;
     state.data.probability = r.probability;
     finish(round, state, ctx, { correct: true, rarityPoints: pts, speed: false, answerLabel: e.name });
-    return { feedback: { valid: true, canonical: e.name, rarityPoints: pts, percent: Math.round(r.probability * 1000) / 10 } };
+    return { feedback: { valid: true, canonical: e.name, corrected: res.status === "corrected" ? v : undefined, rarityPoints: pts, percent: Math.round(r.probability * 10000) / 100 } };
   },
 };
 

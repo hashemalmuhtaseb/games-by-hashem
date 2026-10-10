@@ -7,7 +7,7 @@ import { mergeScoring } from "@/engine/scoring";
 import { MemoryRarityStore } from "@/engine/rarity";
 import type { ActContext } from "@/engine/types";
 
-const ctx = (): ActContext => ({ now: Date.now() + 2000, streak: 0, playerId: "p1", scoring: mergeScoring(), services: { rarity: new MemoryRarityStore() } });
+const ctx = (): ActContext => ({ now: Date.now() + 2000, streak: 0, playerId: "p1", scoring: mergeScoring(), services: { rarity: new MemoryRarityStore() }, balance: 1000 });
 
 describe("Word Forge tries", () => {
   it("only dictionary misses cost a try", async () => {

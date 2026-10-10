@@ -8,7 +8,7 @@ export function GameCard({ g, i = 0 }: { g: GameInfo; i?: number }) {
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i, 12) * 0.03 }}>
       <Link
-        href={`/games/${g.slug}`}
+        href={g.href ?? `/games/${g.slug}`}
         className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-white/[0.07] bg-ink-850/80 p-5 transition hover:-translate-y-1 hover:border-white/20 hover:shadow-2xl"
         style={{ boxShadow: `0 0 0 0 ${g.accent[0]}` }}
       >
@@ -25,9 +25,15 @@ export function GameCard({ g, i = 0 }: { g: GameInfo; i?: number }) {
         <h3 className="display mt-4 text-lg font-bold text-white">{g.name}</h3>
         <p className="mt-1 flex-1 text-sm leading-relaxed text-ink-300">{g.short}</p>
         <div className="mt-4 flex items-center gap-3 text-xs text-ink-400">
-          <span>{modes} {modes === 1 ? "mode" : "modes"}</span>
-          <span>·</span>
-          <span>{g.questionCount.toLocaleString()} questions</span>
+          {g.href ? (
+            <span>2–8 players · solo vs computer</span>
+          ) : (
+            <>
+              <span>{modes} {modes === 1 ? "mode" : "modes"}</span>
+              <span>·</span>
+              <span>{g.questionCount.toLocaleString()} questions</span>
+            </>
+          )}
         </div>
       </Link>
     </motion.div>

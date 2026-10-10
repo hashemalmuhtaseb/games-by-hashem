@@ -1,7 +1,10 @@
-import { CATEGORY_BY_ID, resolveAnswer, firstLetter } from "@/content/categories";
+import { CATEGORY_BY_ID, resolveAnswer, resolveDetailed } from "@/content/categories";
 import { COUNTRIES, distanceKm, direction, type Country } from "@/content/datasets/countries";
 import { compact, findMatch, matchesAny, normalize } from "./normalize";
 import { clueQuality, closeness, computePoints } from "./scoring";
+import { distanceOf, formatNumber, parseGuess } from "./closest";
+import { checkStake, oddsForDifficulty, profitFor, wagerNet, type Odds } from "./chips";
+import { isCorrectDiagnosis, MYSTERY_BUDGET, MYSTERY_MAX_GUESSES, MYSTERY_WRONG_PENALTY, mysteryPoints } from "./games/medicine";
 import { rarityFor, answerKey, commonPointsFromProbability } from "./rarity";
 import { isDictionaryWord, botWord } from "./dictionary";
 import type { ActContext, ActResult, Action, PlayerRoundState, Round, RoundHandler, RoundKind } from "./types";
@@ -24,7 +27,7 @@ export function finish(
   round: Round,
   state: PlayerRoundState,
   ctx: ActContext,
-  r: { correct: boolean; quality?: number; speed?: boolean; rarityPoints?: number; fixedPoints?: number; answerLabel?: string; from?: number },
+  r: { correct: boolean; quality?: number; speed?: boolean; streak?: boolean; rarityPoints?: number; fixedPoints?: number; answerLabel?: string; from?: number },
 ): void {
   state.done = true;
   state.correct = r.correct;
@@ -41,7 +44,7 @@ export function finish(
     elapsedMs: elapsedMs(state, ctx, r.from),
     timeLimitMs: round.pub.timeLimitSec * 1000,
     difficulty: round.difficulty,
-    streak: ctx.streak,
+    streak: r.streak === false ? 0 : ctx.streak,
     speed: r.speed,
     rarityPoints: r.rarityPoints,
   });
@@ -91,15 +94,26 @@ const text: RoundHandler = {
 };
 
 // ───────────────────────── number ─────────────────────────
+// Closeness only: no speed bonus and no streak multiplier, so within a round a farther guess can
+// never out-score a closer one. Multiplayer rooms add a bonus for the closest player(s).
 const number: RoundHandler = {
   act(round, state, action, ctx) {
     if (action.type !== "answer") return { error: "unsupported" };
-    const n = typeof action.value === "number" ? action.value : Number(action.value);
+    const n = parseGuess(action.value);
     const spec = round.secret.numeric!;
     const num = round.pub.input?.numeric;
-    if (!Number.isFinite(n) || (num && (n < num.min || n > num.max))) return { error: "out of range" };
+    if (n === null) return { error: "Enter a number." };
+    if (num && (n < num.min || n > num.max)) return { error: `Enter a number between ${num.min.toLocaleString("en")} and ${num.max.toLocaleString("en")}.` };
     const q = closeness(n, spec.value, spec.scale, spec.tolerance);
-    finish(round, state, ctx, { correct: q >= 0.6, quality: q, answerLabel: `${n}${spec.unit ? " " + spec.unit : ""}` });
+    state.data.guess = n;
+    state.data.distance = distanceOf(n, spec.value);
+    finish(round, state, ctx, {
+      correct: q >= 0.6,
+      quality: q,
+      speed: false,
+      streak: false,
+      answerLabel: `${formatNumber(n, spec.unit)}${spec.unit ? " " + spec.unit : ""}`,
+    });
     return { feedback: { quality: q } };
   },
 };
@@ -272,12 +286,17 @@ const multi: RoundHandler = {
       canonical = m?.value ?? null;
     } else if (sd.categoryId) {
       const cat = CATEGORY_BY_ID.get(sd.categoryId)!;
-      const e = resolveAnswer(cat, v);
-      if (e && (!sd.letter || firstLetter(e.name) === sd.letter)) canonical = e.name;
+      const r = resolveDetailed(cat, v, sd.letter);
+      if (r.status === "suggest") return { feedback: { accepted: false, suggest: r.suggestions.map((e) => e.name), reason: r.reason } };
+      if (r.status === "none") {
+        data.invalid++;
+        return { feedback: { accepted: false, reason: r.reason } };
+      }
+      canonical = r.entry.name;
     }
     if (!canonical) {
       data.invalid++;
-      return { feedback: { accepted: false, reason: "not recognised" } };
+      return { feedback: { accepted: false, reason: "Not one of the valid answers." } };
     }
     if (data.found.includes(canonical)) return { feedback: { accepted: false, reason: "already counted", canonical } };
     data.found.push(canonical);
@@ -300,13 +319,22 @@ const rare: RoundHandler = {
     if (!v) return { error: "empty answer" };
     const sd = round.secret.data as { categoryId: string; letter?: string };
     const cat = CATEGORY_BY_ID.get(sd.categoryId)!;
-    const e = resolveAnswer(cat, v);
-    if (!e || (sd.letter && firstLetter(e.name) !== sd.letter)) {
+    const res = resolveDetailed(cat, v, sd.letter);
+    if (res.status === "suggest") {
+      // Not sure which answer was meant: ask instead of rejecting. Picking a suggestion resubmits it
+      // exactly. After a few unresolved tries the answer counts as invalid.
+      const asked = ((state.data.suggestions as number) ?? 0) + 1;
+      state.data.suggestions = asked;
+      if (asked <= 3) return { feedback: { valid: null, suggest: res.suggestions.map((x) => x.name), reason: res.reason } };
+    }
+    if (res.status !== "exact" && res.status !== "corrected") {
       // Invalid answers lose points; fabricated words never score.
       state.data.answerKey = null;
+      state.data.rejectReason = res.status === "none" ? res.reason : "Not a clear match for any verified answer.";
       finish(round, state, ctx, { correct: false, fixedPoints: -10, answerLabel: v });
-      return { feedback: { valid: false } };
+      return { feedback: { valid: false, reason: state.data.rejectReason, answer: v } };
     }
+    const e = res.entry;
     const stats = await ctx.services.rarity.stats(cat.id);
     const r = rarityFor(cat, e, stats);
     // Hive Mind scores the opposite way: popular answers win.
@@ -316,7 +344,7 @@ const rare: RoundHandler = {
     state.data.canonical = e.name;
     state.data.probability = r.probability;
     finish(round, state, ctx, { correct: true, rarityPoints: pts, speed: false, answerLabel: e.name });
-    return { feedback: { valid: true, canonical: e.name, rarityPoints: pts, percent: Math.round(r.probability * 1000) / 10 } };
+    return { feedback: { valid: true, canonical: e.name, corrected: res.status === "corrected" ? v : undefined, rarityPoints: pts, percent: Math.round(r.probability * 10000) / 100 } };
   },
 };
 
@@ -369,31 +397,48 @@ const map: RoundHandler = {
 };
 
 // ───────────────────────── wager ─────────────────────────
+// Risk & Reward. `points` for this handler is the NET chip change (+profit or −stake); the room or
+// solo session owns the balance and applies it exactly once when the round settles.
+function roundOdds(round: Round): Odds {
+  return (round.pub.extra?.odds as Odds | undefined) ?? oddsForDifficulty(round.difficulty);
+}
+
 const wager: RoundHandler = {
   initState: () => ({ data: { bet: null as number | null } }),
   act(round, state, action, ctx) {
-    const data = state.data as { bet: number | null };
-    const max = (round.pub.extra?.maxBet as number) ?? 100;
+    const data = state.data as { bet: number | null; balance?: number };
+    const odds = roundOdds(round);
     if (action.type === "bet") {
-      if (data.bet !== null) return { error: "already bet" };
-      const b = Math.round(Number(action.value));
-      if (!Number.isFinite(b) || b < 10 || b > max) return { error: "invalid bet" };
-      data.bet = b;
+      // The first accepted stake locks the round for this player: no changes, no second stake.
+      if (data.bet !== null) return { error: "Your stake is locked in for this round." };
+      const balance = ctx.balance ?? 0;
+      const check = checkStake(action.value, balance);
+      if (!check.ok) return { error: check.error };
+      data.bet = check.stake!;
+      data.balance = balance;
       state.data.betAt = ctx.now;
-      return { reveal: { options: round.secret.data?.options, prompt: round.secret.data?.question, media: round.secret.data?.media } };
+      return {
+        feedback: { stake: data.bet, payout: data.bet + profitFor(data.bet, odds), loss: data.bet },
+        reveal: { options: round.secret.data?.options, prompt: round.secret.data?.question, media: round.secret.data?.media },
+      };
     }
     if (action.type !== "answer") return { error: "unsupported" };
-    if (data.bet === null) return { error: "place a bet first" };
+    if (data.bet === null) return { error: "Place your stake first." };
     const opts = round.secret.data?.options as { id: string; label: string }[];
     const id = typeof action.value === "string" ? action.value : "";
     if (!opts.some((o) => o.id === id)) return { error: "invalid option" };
     const correct = id === round.secret.correctOptionId;
-    finish(round, state, ctx, { correct, fixedPoints: correct ? data.bet * 2 : -data.bet, answerLabel: opts.find((o) => o.id === id)?.label });
-    return { feedback: { correct } };
+    const net = wagerNet(data.bet, correct, odds);
+    state.data.net = net;
+    finish(round, state, ctx, { correct, fixedPoints: net, answerLabel: opts.find((o) => o.id === id)?.label });
+    return { feedback: { correct, net } };
   },
   timeout(round, state, ctx) {
+    // Staked but didn't answer in time: the stake is lost. No stake: nothing changes.
     const data = state.data as { bet: number | null };
-    finish(round, state, ctx, { correct: false, fixedPoints: data.bet ? -data.bet : 0 });
+    const net = wagerNet(data.bet, false, roundOdds(round));
+    state.data.net = net;
+    finish(round, state, ctx, { correct: false, fixedPoints: net, answerLabel: data.bet ? "No answer" : "No stake" });
   },
 };
 
@@ -525,7 +570,99 @@ const letters: RoundHandler = {
   },
 };
 
-export const HANDLERS: Record<RoundKind, RoundHandler> = { choice, text, number, clues, reveal, order, groups, multi, rare, sort, map, wager, chain, memory, letters };
+// ───────────────────────── case (Diagnose the Patient) ─────────────────────────
+const HINT_FACTOR = 0.7;
+const caseHandler: RoundHandler = {
+  initState: () => ({ data: { hintUsed: false } }),
+  act(round, state, action, ctx) {
+    const data = state.data as { hintUsed: boolean };
+    if (action.type === "hint") {
+      if (data.hintUsed) return { error: "You've already used the hint." };
+      data.hintUsed = true;
+      return { reveal: { hint: (round.secret.data as { hint?: string } | undefined)?.hint ?? "" } };
+    }
+    if (action.type === "give-up") {
+      finish(round, state, ctx, { correct: false });
+      return {};
+    }
+    if (action.type !== "answer") return { error: "unsupported" };
+    const hintFactor = data.hintUsed ? HINT_FACTOR : 1;
+    if (round.pub.options) {
+      const id = typeof action.value === "string" ? action.value : "";
+      if (!round.pub.options.some((o) => o.id === id)) return { error: "invalid option" };
+      const correct = id === round.secret.correctOptionId;
+      finish(round, state, ctx, { correct, quality: correct ? hintFactor : 0, answerLabel: optionLabel(round, id) ?? id });
+      return { feedback: { correct } };
+    }
+    const v = str(action.value);
+    if (!v) return { error: "empty answer" };
+    state.attempts.push(v);
+    const caseId = (round.secret.data as { caseId?: string } | undefined)?.caseId;
+    if (caseId ? isCorrectDiagnosis(v, caseId) : matchesAny(v, round.secret.accept ?? [])) {
+      const wrong = state.attempts.length - 1;
+      finish(round, state, ctx, { correct: true, quality: hintFactor * Math.max(0.4, 1 - wrong * ctx.scoring.wrongAttemptPenalty), answerLabel: v });
+      return { feedback: { correct: true } };
+    }
+    const left = 2 - state.attempts.length;
+    if (left <= 0) {
+      finish(round, state, ctx, { correct: false, answerLabel: v });
+      return { feedback: { correct: false, attemptsLeft: 0 } };
+    }
+    return { feedback: { correct: false, attemptsLeft: left } };
+  },
+};
+
+// ───────────────────────── investigate (Medical Mystery) ─────────────────────────
+const investigate: RoundHandler = {
+  initState: () => ({ data: { unlocked: [] as string[], spent: 0, wrong: 0, wrongIds: [] as string[] } }),
+  act(round, state, action, ctx) {
+    const data = state.data as { unlocked: string[]; spent: number; wrong: number; wrongIds: string[] };
+    const sections = (round.secret.data as { sections: Record<string, string[]> }).sections;
+    const clues = (round.pub.extra?.clues as { id: string; cost: number }[]) ?? [];
+    const finishWith = (correct: boolean, label?: string) => {
+      const points = mysteryPoints({ correct, spent: data.spent, wrong: data.wrong, elapsedMs: Math.max(0, ctx.now - state.startedAt), timeLimitMs: round.pub.timeLimitSec * 1000, cluesUsed: data.unlocked.length });
+      finish(round, state, ctx, { correct, fixedPoints: points, answerLabel: label });
+      return points;
+    };
+    if (action.type === "clue") {
+      const clue = clues.find((c) => c.id === action.value);
+      if (!clue || !sections[clue.id]) return { error: "No such clue." };
+      if (data.unlocked.includes(clue.id)) return { error: "Already unlocked." };
+      data.unlocked.push(clue.id);
+      data.spent += clue.cost;
+      state.cluesUsed = data.unlocked.length;
+      return { reveal: { clue: clue.id, items: sections[clue.id] }, feedback: { spent: data.spent, remaining: MYSTERY_BUDGET - data.spent } };
+    }
+    if (action.type === "give-up") {
+      data.wrong = Math.max(1, data.wrong);
+      finishWith(false);
+      return {};
+    }
+    if (action.type !== "answer") return { error: "unsupported" };
+    const id = typeof action.value === "string" ? action.value : "";
+    if (!round.pub.options?.some((o) => o.id === id)) return { error: "invalid option" };
+    if (data.wrongIds.includes(id)) return { error: "You've already ruled that out." };
+    if (id === round.secret.correctOptionId) {
+      const points = finishWith(true, optionLabel(round, id));
+      return { feedback: { correct: true, points } };
+    }
+    data.wrong++;
+    data.wrongIds.push(id);
+    if (data.wrong >= MYSTERY_MAX_GUESSES) {
+      const points = finishWith(false, optionLabel(round, id));
+      return { feedback: { correct: false, points, guessesLeft: 0 } };
+    }
+    return { feedback: { correct: false, guessesLeft: MYSTERY_MAX_GUESSES - data.wrong, penalty: MYSTERY_WRONG_PENALTY } };
+  },
+  timeout(round, state, ctx) {
+    const data = state.data as { spent: number; wrong: number; unlocked: string[] };
+    data.wrong = Math.max(1, data.wrong);
+    const points = mysteryPoints({ correct: false, spent: data.spent, wrong: data.wrong, elapsedMs: 0, timeLimitMs: 1, cluesUsed: data.unlocked.length });
+    finish(round, state, ctx, { correct: false, fixedPoints: points, answerLabel: "No diagnosis" });
+  },
+};
+
+export const HANDLERS: Record<RoundKind, RoundHandler> = { choice, text, number, clues, reveal, order, groups, multi, rare, sort, map, wager, chain, memory, letters, case: caseHandler, investigate };
 
 export function newPlayerState(round: Round, now: number): PlayerRoundState {
   const base: PlayerRoundState = { startedAt: now, cluesUsed: 0, attempts: [], done: false, correct: false, quality: 0, points: 0, data: {} };

@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { catalog } from "@/server/catalog";
 import { gameConfig } from "@/server/game-config";
@@ -16,6 +16,7 @@ export default async function GamePage({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const g = catalog().find((x) => x.slug === slug);
   if (!g || !(await gameConfig(slug)).enabled) notFound();
+  if (g.href) redirect(g.href);
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
       <div className="relative overflow-hidden rounded-3xl border border-white/[0.07] p-8 sm:p-10" style={{ background: `linear-gradient(135deg, ${g.accent[0]}22, ${g.accent[1]}11 60%, transparent)` }}>

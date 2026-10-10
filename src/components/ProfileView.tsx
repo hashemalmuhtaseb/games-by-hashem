@@ -12,7 +12,7 @@ export function ProfileView({ p, children }: { p: PublicProfile; children?: Reac
   return (
     <div className="flex flex-col gap-6">
       <div className="card flex flex-col items-center gap-5 p-6 sm:flex-row">
-        <Avatar avatar={p.avatar} color={p.color} size={96} />
+        <Avatar avatar={p.avatar} photo={p.photo} color={p.color} size={96} alt={`${p.displayName}'s profile picture`} />
         <div className="flex-1 text-center sm:text-left">
           <h1 className="display text-3xl font-black text-white">{p.displayName}</h1>
           <div className="text-sm text-ink-400">

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { emit } from "@/client/socket";
+import { Avatar } from "@/components/Avatar";
 import type { ChatMsg } from "./types";
 
 export const REACTIONS = ["👏", "😂", "🔥", "😮", "😭", "🤯", "👀", "💀", "🎉", "🤔"];
@@ -27,8 +28,8 @@ export function Chat({ messages, enabled, me }: { messages: ChatMsg[]; enabled: 
             </div>
           ) : (
             <div key={m.id} className={`leading-snug ${m.playerId === me ? "text-right" : ""}`}>
-              <span className="font-semibold" style={{ color: m.color }}>
-                {m.avatar} {m.name}
+              <span className="inline-flex items-center gap-1 align-middle font-semibold" style={{ color: m.color }}>
+                <Avatar avatar={m.avatar} photo={m.photo} color={m.color} size={18} /> {m.name}
               </span>{" "}
               <span className="break-words text-ink-100">{m.text}</span>
             </div>

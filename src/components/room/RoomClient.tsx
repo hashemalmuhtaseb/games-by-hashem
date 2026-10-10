@@ -11,6 +11,7 @@ import { useMe } from "@/client/me";
 import { Avatar } from "@/components/Avatar";
 import { RoundPlayer, TimerBar, type ActResponse, type Resume } from "@/components/play/Round";
 import { RevealPanel } from "@/components/play/Reveal";
+import { formatNumber } from "@/engine/closest";
 import { Lobby } from "./Lobby";
 import { Chat } from "./Chat";
 import { Scoreboard } from "./Scoreboard";
@@ -226,7 +227,7 @@ export function RoomClient({ code }: { code: string }) {
           </div>
         </div>
         {!connected && <span className="chip border-warn-400/40 text-warn-400">Reconnecting…</span>}
-        {myPlayer && <Avatar avatar={myPlayer.avatar} color={myPlayer.color} size={34} />}
+        {myPlayer && <Avatar avatar={myPlayer.avatar} photo={myPlayer.photo} color={myPlayer.color} size={34} />}
       </header>
 
       {/* floating reactions */}
@@ -275,7 +276,7 @@ export function RoomClient({ code }: { code: string }) {
                 {round.notice && <div className="text-center text-sm text-warn-400">{round.notice}</div>}
                 <AnimatePresence mode="wait">
                   <motion.div key={round.round.roundId} initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }} className="flex flex-col items-center gap-5">
-                    <RoundPlayer round={round.round} act={act} locked={spectating || !!mine?.done || state.paused} reveal={reveal} resume={resume} />
+                    <RoundPlayer round={round.round} act={act} locked={spectating || !!mine?.done || state.paused} reveal={reveal} resume={resume} balance={myPlayer?.chips ?? undefined} />
                     {mine?.done && !reveal && (
                       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center text-ink-300">
                         ✓ Locked in{mine.points !== undefined ? ` — ${mine.points > 0 ? "+" : ""}${mine.points} pts` : ""}. Waiting for the others…
@@ -400,20 +401,33 @@ function AnswersList({ reveal, state }: { reveal: RoomReveal; state: RoomSnapsho
   const results = reveal.extra?.results ?? [];
   if (!results.length) return null;
   const byId = new Map(state.players.map((p) => [p.id, p]));
+  const numeric = results.some((r) => r.distance !== undefined);
+  const unit = (reveal.extra as { unit?: string } | undefined)?.unit;
+  const fmt = (n: number) => formatNumber(n, unit);
+  const sorted = numeric
+    ? results.slice().sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity) || b.points - a.points)
+    : results.slice().sort((a, b) => b.points - a.points);
   return (
     <div className="grid w-full max-w-2xl gap-1.5 sm:grid-cols-2">
-      {results
-        .slice()
-        .sort((a, b) => b.points - a.points)
-        .map((r) => {
+      {numeric && <div className="text-center text-xs text-ink-400 sm:col-span-2">Closest guess wins the round · distance = |guess − answer| · equal distances tie</div>}
+      {sorted.map((r) => {
           const p = byId.get(r.playerId);
           if (!p) return null;
           return (
-            <div key={r.playerId} className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm ${r.correct ? "bg-good-500/10" : "bg-white/[0.03]"}`}>
-              <Avatar avatar={p.avatar} color={p.color} size={26} />
+            <div key={r.playerId} className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm ${r.closest ? "bg-amber-400/15 ring-1 ring-amber-300/60" : r.correct ? "bg-good-500/10" : "bg-white/[0.03]"}`}>
+              <Avatar avatar={p.avatar} photo={p.photo} color={p.color} size={26} />
               <span className="min-w-0 flex-1">
-                <span className="block truncate font-semibold text-white">{p.name}</span>
-                <span className="block truncate text-xs text-ink-400">{r.answer ?? "—"}</span>
+                <span className="block truncate font-semibold text-white">
+                  {r.closest && <span title="Closest guess">🎯 </span>}
+                  {p.name}
+                </span>
+                {numeric ? (
+                  <span className="block truncate text-xs text-ink-400">
+                    {r.guess === null || r.guess === undefined ? "No guess" : `Guessed ${fmt(r.guess)}${unit ? ` ${unit}` : ""} · off by ${fmt(r.distance ?? 0)}`}
+                  </span>
+                ) : (
+                  <span className="block truncate text-xs text-ink-400">{r.answer ?? "—"}</span>
+                )}
               </span>
               <span className={`font-bold tabular-nums ${r.correct ? "text-good-400" : r.points < 0 ? "text-bad-400" : "text-ink-400"}`}>
                 {r.points > 0 ? "+" : ""}
@@ -455,7 +469,7 @@ function Results({ state, me, isHost }: { state: RoomSnapshot; me: string; isHos
           const h = i === 0 ? "h-40" : i === 1 ? "h-28" : "h-20";
           return (
             <motion.div key={s.playerId} initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 + (2 - i) * 0.25 }} className="flex w-28 flex-col items-center sm:w-36">
-              <Avatar avatar={s.avatar} color={s.color} size={i === 0 ? 72 : 56} ring={i === 0} />
+              <Avatar avatar={s.avatar} photo={s.photo} color={s.color} size={i === 0 ? 72 : 56} ring={i === 0} />
               <div className="mt-2 max-w-full truncate font-bold text-white">{s.name}</div>
               <div className="text-sm text-ink-300 tabular-nums">{s.score}</div>
               <div className={`mt-2 grid w-full place-items-center rounded-t-2xl ${h} ${i === 0 ? "bg-gradient-to-b from-amber-400/40 to-amber-400/5" : i === 1 ? "bg-gradient-to-b from-slate-300/30 to-slate-300/5" : "bg-gradient-to-b from-orange-700/40 to-orange-700/5"}`}>
@@ -470,7 +484,7 @@ function Results({ state, me, isHost }: { state: RoomSnapshot; me: string; isHos
           {f.standings.map((s) => (
             <li key={s.playerId} className={`flex items-center gap-3 rounded-xl px-3 py-2 ${s.playerId === me ? "bg-brand-500/15" : ""}`}>
               <span className="w-6 text-center font-bold text-ink-400">{s.rank}</span>
-              <Avatar avatar={s.avatar} color={s.color} size={30} dim={s.eliminated} />
+              <Avatar avatar={s.avatar} photo={s.photo} color={s.color} size={30} dim={s.eliminated} />
               <span className="flex-1 font-semibold text-white">{s.name}</span>
               <span className="text-xs text-ink-400">{s.correct} correct</span>
               {s.rating && (

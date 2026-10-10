@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { useState } from "react";
 import type { PointsBreakdown, RevealPayload } from "@/engine/types";
 import { api } from "@/client/api";
+import { formatNumber } from "@/engine/closest";
 
 export function PointsPill({ points, correct }: { points: number; correct: boolean }) {
   return (
@@ -66,7 +67,7 @@ export function RevealPanel({ reveal, points, correct, breakdown, timedOut }: { 
       <div className="display mt-1 text-2xl font-bold text-white">{reveal.answerLabel}</div>
       {ex?.value !== undefined && (
         <div className="mt-1 text-ink-300">
-          Exact value: <b className="text-white">{ex.value.toLocaleString()}{ex.unit ? ` ${ex.unit}` : ""}</b>
+          Exact value: <b className="text-white">{formatNumber(ex.value, ex.unit)}{ex.unit ? ` ${ex.unit}` : ""}</b>
         </div>
       )}
       {reveal.explanation && <p className="mx-auto mt-2 max-w-xl text-sm text-ink-300">{reveal.explanation}</p>}

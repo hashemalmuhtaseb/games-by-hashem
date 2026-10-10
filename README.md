@@ -13,6 +13,9 @@ custom `server.ts`) · Postgres + Prisma · Zod · Vitest · Playwright.
 
 ## Run it
 
+No Postgres installed? `npm run db:local` starts a private one (port 54400, data in `.localdb/`); point
+`DATABASE_URL` at `postgresql://postgres:partyverse@127.0.0.1:54400/partyverse`.
+
 ```bash
 cp .env.example .env            # set DATABASE_URL and SESSION_SECRET
 npm install

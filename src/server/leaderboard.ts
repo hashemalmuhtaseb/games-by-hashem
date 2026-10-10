@@ -24,6 +24,6 @@ export async function leaderboard(board: string, limit = 50) {
   return rows.map((r, i) => ({ rank: i + 1, player: pick(r.player), value: key === "wins" ? r.wins : r.xp, detail: `Level ${r.level}` }));
 }
 
-function pick(p?: { id: string; displayName: string; avatar: string; color: string; isGuest: boolean } | null) {
-  return p ? { id: p.id, displayName: p.displayName, avatar: p.avatar, color: p.color, isGuest: p.isGuest } : { id: "?", displayName: "Unknown", avatar: "❔", color: "#666", isGuest: true };
+function pick(p?: { id: string; displayName: string; avatar: string; photoUrl: string | null; color: string; isGuest: boolean } | null) {
+  return p ? { id: p.id, displayName: p.displayName, avatar: p.avatar, photo: p.photoUrl, color: p.color, isGuest: p.isGuest } : { id: "?", displayName: "Unknown", avatar: "❔", photo: null, color: "#666", isGuest: true };
 }

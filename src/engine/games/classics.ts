@@ -7,7 +7,7 @@ import { MOVIES, type Movie } from "@/content/datasets/movies";
 import { SONGS, SONG_BY_ID, songArtistNames, type Song } from "@/content/datasets/songs";
 import { CELEBRITIES, type Celebrity } from "@/content/datasets/celebrities";
 import { CLUBS, FOOTBALLERS, MANAGERS, UCL_WINNERS, WORLD_CUPS, type Footballer } from "@/content/datasets/football";
-import { CATEGORIES, CATEGORY_BY_ID, resolveAnswer, viableLetters, firstLetter, type Category } from "@/content/categories";
+import { CATEGORIES, CATEGORY_BY_ID, resolveAnswer, viableLetters, firstLetter, letterCount, type Category } from "@/content/categories";
 import { choiceRound, cluesRound, decadeOf, genericRound, makeOptions, numberRound, orderRound, pickDistinct, revealRound, textRound } from "../build";
 import { compact } from "../normalize";
 import { pick, randInt, sample, shuffle, type Rng } from "../rng";
@@ -229,7 +229,7 @@ function battleMode(catId: string): ModeDefinition {
       return out;
     },
     build(c, ctx) {
-      const n = cat.entries.filter((e) => firstLetter(e.name) === c.ref).length;
+      const n = letterCount(cat, c.ref);
       const target = Math.max(3, Math.min(8, Math.floor(n / 4)));
       return genericRound(
         "multi",

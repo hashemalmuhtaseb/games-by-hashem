@@ -95,6 +95,8 @@ model Player {
   displayName String
   avatar      String   @default("🦊")
   color       String   @default("#8b5cf6")
+  // Uploaded profile picture: "/api/avatar/<id>?v=<version>". Null means the emoji avatar is shown.
+  photoUrl    String?
   createdAt   DateTime @default(now())
   lastSeenAt  DateTime @default(now())
 
@@ -109,6 +111,7 @@ model Player {
   friendsReceived Friendship[]            @relation("FriendAddressee")
   rareVotes       RareAnswerVote[]
   gameStats       PlayerGameStat[]
+  avatarImage     AvatarImage?
 
   @@index([lastSeenAt])
 }
@@ -126,6 +129,17 @@ model Profile {
   bestStreak         Int      @default(0)
   favoriteCategories String[] @default([])
   updatedAt          DateTime @updatedAt
+}
+
+// Uploaded profile pictures, stored in Postgres so they survive redeploys (no local disk needed).
+// Always a re-encoded 256×256 WebP produced on the server; the original upload is never stored.
+model AvatarImage {
+  playerId  String   @id
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  data      Bytes
+  mime      String   @default("image/webp")
+  version   Int      @default(1)
+  updatedAt DateTime @updatedAt
 }
 
 model PlayerGameStat {

@@ -7,7 +7,8 @@ const Action = z.discriminatedUnion("type", [
   z.object({ type: z.literal("give-up") }),
   z.object({ type: z.literal("finish") }),
   z.object({ type: z.literal("ready") }),
-  z.object({ type: z.literal("bet"), value: z.number().int().min(0).max(1000) }),
+  z.object({ type: z.literal("clue"), value: z.string().max(20) }),
+  z.object({ type: z.literal("bet"), value: z.number().max(10_000_000) }),
 ]);
 const Body = z.object({ sessionId: z.string().max(64), roundId: z.string().max(32), action: Action });
 

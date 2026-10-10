@@ -14,6 +14,7 @@ export async function publicProfile(playerId: string, self = false) {
     id: p.id,
     displayName: p.displayName,
     avatar: p.avatar,
+    photo: p.photoUrl,
     color: p.color,
     isGuest: p.isGuest,
     username: p.user?.username ?? null,

@@ -5,13 +5,14 @@ import { api } from "@/client/api";
 import { useMe } from "@/client/me";
 import { Avatar } from "@/components/Avatar";
 import { ProfileView } from "@/components/ProfileView";
+import { AvatarUploader } from "@/components/AvatarUploader";
 
 const AVATARS = ["🦊", "🐼", "🦁", "🐯", "🐸", "🐙", "🦄", "🐲", "🦉", "🐧", "🦖", "🐨", "🐵", "🦈", "🐝", "🦩", "🐺", "🦝", "🐬", "🦜", "👾", "🤖", "👽", "🎃"];
 const COLORS = ["#8b5cf6", "#ec4899", "#f97316", "#22c55e", "#06b6d4", "#eab308", "#ef4444", "#3b82f6", "#14b8a6", "#a855f7"];
 
 interface FriendRow {
   id: string;
-  player: { id: string; displayName: string; avatar: string; color: string; lastSeenAt: string };
+  player: { id: string; displayName: string; avatar: string; photo: string | null; color: string; lastSeenAt: string };
 }
 
 export function MyProfile() {
@@ -23,6 +24,7 @@ export function MyProfile() {
   const [friends, setFriends] = useState<{ friends: FriendRow[]; incoming: FriendRow[]; outgoing: FriendRow[] } | null>(null);
   const [friendName, setFriendName] = useState("");
   const [friendMsg, setFriendMsg] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const loadFriends = useCallback(() => api<typeof friends>("/api/friends").then(setFriends, () => undefined), []);
   useEffect(() => {
     void loadFriends();
@@ -96,7 +98,42 @@ export function MyProfile() {
             </label>
           </div>
           <div>
-            <div className="label mb-2">Avatar</div>
+            <div className="label mb-2">Profile picture</div>
+            {uploading ? (
+              <AvatarUploader
+                onCancel={() => setUploading(false)}
+                onSaved={async () => {
+                  await refresh();
+                  setUploading(false);
+                  setErr(null);
+                }}
+              />
+            ) : (
+              <div className="flex flex-wrap items-center gap-3">
+                <Avatar avatar={me.avatar} photo={me.photo} color={me.color} size={64} />
+                <button className="btn-ghost text-sm" onClick={() => setUploading(true)}>
+                  {me.photo ? "Change photo" : "Upload a photo"}
+                </button>
+                {me.photo && (
+                  <button
+                    className="text-sm text-ink-400 hover:text-bad-400"
+                    onClick={async () => {
+                      try {
+                        await api("/api/me/avatar", { method: "DELETE" });
+                        await refresh();
+                      } catch (e) {
+                        setErr((e as Error).message);
+                      }
+                    }}
+                  >
+                    Remove photo
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          <div>
+            <div className="label mb-2">{me.photo ? "Fallback avatar" : "Avatar"}</div>
             <div className="flex flex-wrap gap-2">
               {AVATARS.map((a) => (
                 <button key={a} onClick={() => void patch({ avatar: a })} className={`rounded-full ${me.avatar === a ? "ring-2 ring-brand-400" : ""}`}>
@@ -145,7 +182,7 @@ export function MyProfile() {
         {friendMsg && <p className="mb-3 text-sm text-ink-300">{friendMsg}</p>}
         {friends?.incoming.map((f) => (
           <div key={f.id} className="mb-2 flex items-center gap-3 rounded-xl bg-brand-500/10 px-3 py-2">
-            <Avatar avatar={f.player.avatar} color={f.player.color} size={30} />
+            <Avatar avatar={f.player.avatar} photo={f.player.photo} color={f.player.color} size={30} />
             <span className="flex-1 text-white">{f.player.displayName} wants to be friends</span>
             <button className="btn-primary px-3 py-1 text-sm" onClick={() => void api("/api/friends", { method: "PATCH", body: { id: f.id, action: "accept" } }).then(loadFriends)}>
               Accept
@@ -158,7 +195,7 @@ export function MyProfile() {
         <div className="grid gap-2 sm:grid-cols-2">
           {friends?.friends.map((f) => (
             <div key={f.id} className="flex items-center gap-3 rounded-xl bg-white/[0.03] px-3 py-2">
-              <Avatar avatar={f.player.avatar} color={f.player.color} size={30} />
+              <Avatar avatar={f.player.avatar} photo={f.player.photo} color={f.player.color} size={30} />
               <Link href={`/u/${f.player.id}`} className="flex-1 text-white hover:underline">
                 {f.player.displayName}
               </Link>
@@ -170,7 +207,7 @@ export function MyProfile() {
           ))}
           {friends?.outgoing.map((f) => (
             <div key={f.id} className="flex items-center gap-3 rounded-xl bg-white/[0.02] px-3 py-2 opacity-60">
-              <Avatar avatar={f.player.avatar} color={f.player.color} size={30} />
+              <Avatar avatar={f.player.avatar} photo={f.player.photo} color={f.player.color} size={30} />
               <span className="flex-1 text-white">{f.player.displayName}</span>
               <span className="text-xs text-ink-400">pending</span>
             </div>

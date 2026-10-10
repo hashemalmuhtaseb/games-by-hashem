@@ -13,7 +13,8 @@ export function Summary({ summary, game, variant, onAgain }: { summary: SessionS
     <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="mx-auto mt-6 w-full max-w-lg">
       <div className="card overflow-hidden p-8 text-center">
         <div className="text-6xl">{pct >= 80 ? "🏆" : pct >= 50 ? "🎉" : "💪"}</div>
-        <div className="label mt-4">Final score</div>
+        {summary.bust && <div className="mt-3 font-semibold text-bad-400">You ran out of chips.</div>}
+        <div className="label mt-4">{summary.chips ? "Final balance" : "Final score"}</div>
         <div className="display bg-gradient-to-r from-brand-400 to-hot-500 bg-clip-text text-7xl font-black text-transparent">{summary.score.toLocaleString()}</div>
         <div className="mt-6 grid grid-cols-3 gap-3">
           <Stat label="Correct" value={`${summary.correct}/${summary.rounds}`} />

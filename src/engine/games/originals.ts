@@ -14,6 +14,7 @@ import { choiceRound, cluesRound, decadeOf, genericRound, makeOptions, numberRou
 import { compact } from "../normalize";
 import { pick, randInt, sample, shuffle, type Rng } from "../rng";
 import { proxyModes } from "./mix";
+import { oddsForDifficulty } from "../chips";
 import { SOVEREIGN, TRANSCONTINENTAL } from "./classics";
 import type { BuildContext, Candidate, GameDefinition, ModeDefinition, Round } from "../types";
 
@@ -123,18 +124,18 @@ function wagerModes(): ModeDefinition[] {
     async build(c, ctx) {
       const r = await m.build(c, { ...ctx, preferChoice: true });
       if (r.handler !== "choice" || !r.pub.options) throw new Error("skip-kind:non-choice");
-      const maxBet = 50 + c.difficulty * 30;
+      const odds = oddsForDifficulty(c.difficulty);
       return {
         ...r,
         handler: "wager",
         pub: {
           ...r.pub,
           kind: "wager",
-          prompt: `Topic: ${r.pub.modeLabel}. Difficulty ${"★".repeat(c.difficulty)}. How much will you bet?`,
+          prompt: `Topic: ${r.pub.modeLabel}. Difficulty ${"★".repeat(c.difficulty)}. Odds ${odds.label}. How many chips will you stake?`,
           media: undefined,
           options: undefined,
           timeLimitSec: (ctx.timeLimitSec ?? r.pub.timeLimitSec) + 10,
-          extra: { ...(r.pub.extra ?? {}), maxBet },
+          extra: { ...(r.pub.extra ?? {}), odds },
         },
         secret: { ...r.secret, data: { ...(r.secret.data ?? {}), question: r.pub.prompt, options: r.pub.options, media: r.pub.media?.[0] } },
       } satisfies Round;
@@ -150,13 +151,19 @@ const riskSources = () => riskSourcesFn();
 
 export const riskRewardGame: GameDefinition = {
   slug: RISK,
-  name: "Risk or Reward",
-  short: "See the topic and difficulty, place your bet, then face the question. Double or nothing.",
+  name: "Risk & Reward",
+  short: "Stake virtual chips on each question before you see it. Hit zero and you're out.",
   icon: "🎲",
   accent: ["#f59e0b", "#ef4444"],
   group: "party",
   original: true,
-  rules: ["You see only the topic and difficulty first.", "Bet between 10 and the round's maximum. Right answers win double your bet; wrong answers lose it.", "Know your strengths — and your weaknesses."],
+  rules: [
+    "Everyone starts with 1,000 virtual chips (the host can change this). Chips are for fun only: no real money, no prizes.",
+    "Each round you see the topic, difficulty and odds first, then stake 1 chip up to your whole balance. Your stake locks once placed.",
+    "Right answer: you get your stake back plus profit at the odds shown (Evens pays 1 for 1). Wrong answer or no answer: you lose the stake.",
+    "Hit zero chips and you're eliminated; you can keep watching. If only one player has chips left, they win.",
+    "If the last players all go bust in the same round, whoever had more chips before it places higher. Equal balances share the place.",
+  ],
   get modes() {
     return wagerModes();
   },

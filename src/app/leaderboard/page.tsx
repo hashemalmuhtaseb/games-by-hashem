@@ -42,7 +42,7 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
             {rows.map((r) => (
               <li key={r.rank + r.player.id} className="flex items-center gap-4 border-b border-white/5 px-5 py-3 last:border-0">
                 <span className={`display w-8 text-center text-lg font-black ${r.rank === 1 ? "text-amber-300" : r.rank === 2 ? "text-slate-300" : r.rank === 3 ? "text-orange-400" : "text-ink-400"}`}>{r.rank}</span>
-                <Avatar avatar={r.player.avatar} color={r.player.color} size={36} />
+                <Avatar avatar={r.player.avatar} photo={r.player.photo} color={r.player.color} size={36} />
                 <Link href={`/u/${r.player.id}`} className="flex-1 font-semibold text-white hover:underline">
                   {r.player.displayName}
                   {r.player.isGuest && <span className="ml-2 text-xs font-normal text-ink-400">guest</span>}

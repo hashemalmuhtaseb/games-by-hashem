@@ -210,7 +210,16 @@ export function Lobby({ state, me }: { state: RoomSnapshot; me: string }) {
               onChange={(v) => void set({ timeLimitSec: v ? Number(v) : null })}
             />
           )}
-          {s.mode === "survival" && <NumberSetting label="Lives" value={s.lives} min={1} max={5} disabled={!isHost} onChange={(v) => void set({ lives: v })} />}
+          {s.gameSlug === "risk-reward" && (
+            <SelectSetting
+              label="Starting chips"
+              value={String(s.startingChips)}
+              disabled={!isHost}
+              options={[...new Set([500, 1000, 2500, 5000, 10000, s.startingChips])].sort((a, b) => a - b).map((n) => [String(n), `${n.toLocaleString()} chips`] as [string, string])}
+              onChange={(v) => void set({ startingChips: Number(v) })}
+            />
+          )}
+          {s.mode === "survival" && s.gameSlug !== "risk-reward" && <NumberSetting label="Lives" value={s.lives} min={1} max={5} disabled={!isHost} onChange={(v) => void set({ lives: v })} />}
           {s.mode === "teams" && <NumberSetting label="Teams" value={s.teamCount} min={2} max={4} disabled={!isHost} onChange={(v) => void set({ teamCount: v })} />}
           <NumberSetting label="Max players" value={s.maxPlayers} min={2} max={12} disabled={!isHost} onChange={(v) => void set({ maxPlayers: v })} />
           <NumberSetting label="Reveal (sec)" value={s.revealSec} min={3} max={30} disabled={!isHost} onChange={(v) => void set({ revealSec: v })} />
@@ -258,7 +267,7 @@ function PlayerList({ state, me, filter, isHost }: { state: RoomSnapshot; me: st
     <ul className="flex flex-col gap-1.5">
       {list.map((p) => (
         <motion.li key={p.id} layout initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="relative flex items-center gap-3 rounded-xl bg-white/[0.03] px-3 py-2">
-          <Avatar avatar={p.avatar} color={p.color} size={34} dim={!p.connected} />
+          <Avatar avatar={p.avatar} photo={p.photo} color={p.color} size={34} dim={!p.connected} />
           <span className="flex-1 truncate font-semibold text-white">
             {p.name}
             {p.id === me && <span className="ml-1 text-xs text-ink-400">(you)</span>}

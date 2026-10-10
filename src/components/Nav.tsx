@@ -18,7 +18,7 @@ export function Nav() {
   const path = usePathname();
   const [muted, setM] = useState(false);
   useEffect(() => setM(isMuted()), []);
-  if (path?.startsWith("/play/") || path?.startsWith("/room/")) return null; // immersive screens draw their own header
+  if (path?.startsWith("/play/") || path?.startsWith("/room/") || (path?.startsWith("/poker/") && path.length > 7)) return null; // immersive screens draw their own header
   return (
     <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-ink-950/70 backdrop-blur-xl">
       <nav className="mx-auto flex h-16 max-w-7xl items-center gap-1 px-4 sm:gap-6">
@@ -60,7 +60,7 @@ export function Nav() {
         </button>
         {me ? (
           <Link href="/profile" className="flex items-center gap-2 rounded-xl py-1 pr-3 pl-1 hover:bg-white/5">
-            <Avatar avatar={me.avatar} color={me.color} size={32} />
+            <Avatar avatar={me.avatar} photo={me.photo} color={me.color} size={32} />
             <span className="hidden text-sm leading-tight md:block">
               <span className="block font-semibold">{me.displayName}</span>
               <span className="block text-xs text-ink-400">Lv {me.level}{me.isGuest ? " · guest" : ""}</span>

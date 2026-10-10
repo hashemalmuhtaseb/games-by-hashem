@@ -7,11 +7,11 @@ import { mergeScoring } from "@/engine/scoring";
 import { MemoryRarityStore } from "@/engine/rarity";
 import { compact } from "@/engine/normalize";
 import { COUNTRIES } from "@/content/datasets/countries";
-import { CATEGORY_BY_ID, firstLetter } from "@/content/categories";
+import { CATEGORY_BY_ID, entryLetter as firstLetterOf } from "@/content/categories";
 import type { ActContext, Action, Round } from "@/engine/types";
 
 const media = { flag: (iso: string) => `/api/media/opaque-${Math.random().toString(36).slice(2)}` };
-const ctx = (): ActContext => ({ now: Date.now() + 2000, streak: 0, playerId: "p1", scoring: mergeScoring(), services: { rarity: new MemoryRarityStore() } });
+const ctx = (): ActContext => ({ now: Date.now() + 2000, streak: 0, playerId: "p1", scoring: mergeScoring(), services: { rarity: new MemoryRarityStore() }, balance: 1000 });
 
 /** A sequence of actions that should complete the round correctly. */
 async function correctActions(r: Round): Promise<Action[] | null> {
@@ -35,17 +35,21 @@ async function correctActions(r: Round): Promise<Action[] | null> {
       if (sd?.accept) names = (sd.accept as { name: string }[]).map((a) => a.name);
       else {
         const cat = CATEGORY_BY_ID.get(sd!.categoryId as string)!;
-        names = cat.entries.filter((e) => !sd!.letter || firstLetter(e.name) === sd!.letter).map((e) => e.name);
+        names = cat.entries.filter((e) => !sd!.letter || firstLetterOf(e) === sd!.letter).map((e) => e.name);
       }
       return names.slice(0, target).map((n) => ({ type: "answer", value: n }));
     }
     case "rare": {
       const cat = CATEGORY_BY_ID.get(sd!.categoryId as string)!;
-      const e = cat.entries.find((x) => !sd!.letter || firstLetter(x.name) === sd!.letter)!;
+      const e = cat.entries.find((x) => !sd!.letter || firstLetterOf(x) === sd!.letter)!;
       return [{ type: "answer", value: e.name }];
     }
     case "letters":
       return [{ type: "answer", value: r.secret.answerLabel.toLowerCase() }];
+    case "case":
+      return [{ type: "answer", value: r.pub.options ? r.secret.correctOptionId! : r.secret.accept![0] }];
+    case "investigate":
+      return [{ type: "clue", value: "symptoms" }, { type: "answer", value: r.secret.correctOptionId! }];
     default: {
       const a = await correctAction(r);
       return a ? [a as Action] : null;

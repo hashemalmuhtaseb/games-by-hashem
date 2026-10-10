@@ -13,11 +13,18 @@ import { compact } from "./normalize";
  *    the same player never move the numbers, so rarity can't be farmed.
  * 3. Smoothing: posterior p = (count + α·prior) / (total + α) with α = 200 pseudo-answers, so a
  *    handful of early votes can't swing scores wildly; observed data dominates once it is plentiful.
- * 4. Points: map -log10(p) from [0.8, 3.8] onto [10, 100].
+ * 4. Points: map -log10(p) from [0.8, 3.8] onto [10, 100]. Very large categories (150k football
+ *    players) use a wider range so a well-known name and a truly obscure one stay far apart.
+ * 5. Fame: when a list carries a fame signal (Wikipedia sitelinks), half of the prior mass follows
+ *    fame^2.5 across the WHOLE list. An answer missing from the curated tiers therefore gets a
+ *    prior that reflects how well known it is, never an automatic maximum.
  */
 
 export const TIER_MASS = { 1: 0.6, 2: 0.3, 3: 0.09, 4: 0.01 } as const;
 export const PRIOR_STRENGTH = 200;
+export const FAME_SHARE = 0.5;
+export const FAME_EXPONENT = 2.5;
+export const DEFAULT_SCALE: [number, number] = [0.8, 3.8];
 
 const priorCache = new Map<string, Map<string, number>>();
 
@@ -41,6 +48,15 @@ export function priors(cat: Category): Map<string, number> {
     const sum = weights.reduce((a, b) => a + b, 0);
     list.forEach((e, i) => out.set(answerKey(e), (mass * weights[i]) / sum));
   }
+  const famed = cat.entries.filter((e) => (e.fame ?? 0) > 0);
+  if (famed.length) {
+    const fameSum = famed.reduce((s, e) => s + Math.pow(e.fame!, FAME_EXPONENT), 0);
+    for (const [k, v] of out) out.set(k, v * (1 - FAME_SHARE));
+    for (const e of famed) {
+      const k = answerKey(e);
+      out.set(k, (out.get(k) ?? 0) + (FAME_SHARE * Math.pow(e.fame!, FAME_EXPONENT)) / fameSum);
+    }
+  }
   priorCache.set(cat.id, out);
   return out;
 }
@@ -50,13 +66,13 @@ export interface RarityStats {
   total: number;
 }
 
-export function posterior(prior: number, count: number, total: number): number {
-  return (count + PRIOR_STRENGTH * prior) / (total + PRIOR_STRENGTH);
+export function posterior(prior: number, count: number, total: number, strength = PRIOR_STRENGTH): number {
+  return (count + strength * prior) / (total + strength);
 }
 
-export function pointsFromProbability(p: number): number {
-  const x = -Math.log10(Math.max(p, 1e-9));
-  const t = (x - 0.8) / 3;
+export function pointsFromProbability(p: number, scale: [number, number] = DEFAULT_SCALE): number {
+  const x = -Math.log10(Math.max(p, 1e-12));
+  const t = (x - scale[0]) / (scale[1] - scale[0]);
   return Math.round(10 + 90 * Math.max(0, Math.min(1, t)));
 }
 
@@ -64,8 +80,8 @@ export function rarityFor(cat: Category, entry: WordEntry, stats: RarityStats): 
   const key = answerKey(entry);
   const prior = priors(cat).get(key) ?? 1 / Math.max(1, cat.entries.length);
   const count = stats.counts.get(key) ?? 0;
-  const p = posterior(prior, count, stats.total);
-  return { probability: p, points: pointsFromProbability(p), count };
+  const p = posterior(prior, count, stats.total, cat.priorStrength);
+  return { probability: p, points: pointsFromProbability(p, cat.rarityScale), count };
 }
 
 /** Storage abstraction so tests can use memory and the app uses Postgres. */

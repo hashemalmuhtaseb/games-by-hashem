@@ -3,6 +3,7 @@ import { AnimatePresence, motion, Reorder } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Action, MediaRef, OptionPublic, PointsBreakdown, PublicRound, RevealPayload, SuggestSet } from "@/engine/types";
 import { play } from "@/client/sound";
+import { api } from "@/client/api";
 import { MediaView } from "./Media";
 
 export interface ActResponse {
@@ -685,12 +686,74 @@ function GroupsKind({ round, act, locked, reveal, resume }: Ctl) {
   );
 }
 
+function ReportRejection({ contentKey, answer, reason }: { contentKey?: string; answer: string; reason?: string }) {
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  if (!contentKey) return null;
+  if (state === "sent") return <span className="text-xs text-good-400">Thanks — we&apos;ll check “{answer}” and add it if it&apos;s valid.</span>;
+  return (
+    <button
+      className="text-xs text-ink-400 underline-offset-2 hover:text-white hover:underline"
+      disabled={state === "sending"}
+      onClick={async () => {
+        setState("sending");
+        try {
+          await api("/api/report", { body: { kind: "answer", contentKey, answer, reason: `Rejected answer “${answer}”${reason ? ` — ${reason}` : ""}` } });
+          setState("sent");
+        } catch {
+          setState("error");
+        }
+      }}
+    >
+      {state === "error" ? "Couldn't send — try again" : "I think this answer is valid — report it"}
+    </button>
+  );
+}
+
+function Suggestions({ names, reason, onPick, disabled }: { names: string[]; reason?: string; onPick: (n: string) => void; disabled: boolean }) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-xl rounded-xl border border-warn-400/30 bg-warn-400/10 p-3 text-center" role="status">
+      <div className="text-sm text-warn-400">{reason ?? "Did you mean…"}</div>
+      <div className="mt-2 flex flex-wrap justify-center gap-2">
+        {names.map((n) => (
+          <button key={n} className="btn-ghost px-3 py-1.5 text-sm" disabled={disabled} onClick={() => onPick(n)}>
+            {n}
+          </button>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
 function MultiKind({ round, act, locked, resume }: Ctl) {
   const [found, setFound] = useState<string[]>(() => (resume?.found as string[]) ?? []);
   const [shake, setShake] = useState(0);
+  const [suggest, setSuggest] = useState<{ names: string[]; reason?: string } | null>(null);
+  const [rejected, setRejected] = useState<{ answer: string; reason?: string } | null>(null);
   const toast = useToast();
   const target = round.input?.target ?? 5;
   const done = locked || !!resume?.done;
+  const submit = async (v: string) => {
+    setSuggest(null);
+    const r = await act({ type: "answer", value: v });
+    const f = r?.feedback as { accepted?: boolean; canonical?: string; reason?: string; suggest?: string[] } | undefined;
+    if (!f) return;
+    if (f.accepted) {
+      setRejected(null);
+      setFound((x) => [...x, f.canonical ?? v]);
+      if (f.canonical && compactLabel(f.canonical) !== compactLabel(v)) toast.show(`Counted as ${f.canonical}`, "good");
+      play("pop");
+    } else if (f.suggest?.length) {
+      setSuggest({ names: f.suggest, reason: f.reason });
+    } else {
+      setShake((s) => s + 1);
+      play("wrong");
+      if (f.reason === "already counted") toast.show("Already got that one", "bad");
+      else {
+        setRejected({ answer: v, reason: f.reason });
+        toast.show(f.reason ?? "Not recognised", "bad");
+      }
+    }
+  };
   return (
     <div className="flex w-full max-w-xl flex-col items-center gap-4">
       <div className="flex gap-2">
@@ -698,25 +761,10 @@ function MultiKind({ round, act, locked, resume }: Ctl) {
           <motion.div key={i} animate={{ scale: found[i] ? [1, 1.15, 1] : 1 }} className={`h-3 w-10 rounded-full ${found[i] ? "bg-good-400" : "bg-white/10"}`} />
         ))}
       </div>
-      <TextAnswer
-        placeholder={round.input?.placeholder ?? (round.input?.letter ? `Starts with ${round.input.letter}…` : "Type an answer…")}
-        disabled={done}
-        shake={shake}
-        onSubmit={async (v) => {
-          const r = await act({ type: "answer", value: v });
-          const f = r?.feedback as { accepted?: boolean; canonical?: string; reason?: string } | undefined;
-          if (!f) return;
-          if (f.accepted) {
-            setFound((x) => [...x, f.canonical ?? v]);
-            play("pop");
-          } else {
-            setShake((s) => s + 1);
-            play("wrong");
-            toast.show(f.reason === "already counted" ? "Already got that one" : "Not recognised", "bad");
-          }
-        }}
-      />
+      <TextAnswer placeholder={round.input?.placeholder ?? (round.input?.letter ? `Starts with ${round.input.letter}…` : "Type an answer…")} disabled={done} shake={shake} onSubmit={submit} />
+      {suggest && <Suggestions names={suggest.names} reason={suggest.reason} disabled={done} onPick={(n) => void submit(n)} />}
       {toast.node}
+      {rejected && !done && <ReportRejection contentKey={`${round.gameSlug}:${round.mode}:${round.input?.letter ?? ""}`} answer={rejected.answer} reason={rejected.reason} />}
       <div className="flex flex-wrap justify-center gap-2">
         {found.map((f) => (
           <motion.span key={f} initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="chip border-good-500/40 bg-good-500/10 px-3 py-1 text-sm text-good-400">
@@ -733,29 +781,47 @@ function MultiKind({ round, act, locked, resume }: Ctl) {
   );
 }
 
+const compactLabel = (s: string) =>
+  s
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+
 function RareKind({ round, act, locked, resume }: Ctl) {
-  const [res, setRes] = useState<{ valid: boolean; canonical?: string; rarityPoints?: number; percent?: number } | null>(null);
-  const done = locked || !!resume?.done || !!res;
+  type Res = { valid: boolean | null; canonical?: string; corrected?: string; rarityPoints?: number; percent?: number; reason?: string; suggest?: string[]; answer?: string };
+  const [res, setRes] = useState<Res | null>(null);
+  const finished = !!res && res.valid !== null;
+  const done = locked || !!resume?.done || finished;
+  const submit = async (v: string) => {
+    const r = await act({ type: "answer", value: v });
+    if (r?.feedback) setRes({ ...(r.feedback as Res), answer: (r.feedback as Res).answer ?? v });
+  };
+  const letter = round.input?.letter;
   return (
     <div className="flex w-full flex-col items-center gap-4">
-      <TextAnswer
-        placeholder={round.input?.placeholder ?? (round.input?.letter ? `Something starting with ${round.input.letter}…` : "The rarer the better…")}
-        disabled={done}
-        onSubmit={async (v) => {
-          const r = await act({ type: "answer", value: v });
-          if (r?.feedback) setRes(r.feedback as typeof res);
-        }}
-      />
-      {res && (
-        <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center">
-          {res.valid ? (
+      {letter && <div className="text-xs text-ink-400">The answer&apos;s name as it&apos;s usually written must start with {letter}.</div>}
+      <TextAnswer placeholder={round.input?.placeholder ?? (letter ? `Something starting with ${letter}…` : "The rarer the better…")} disabled={done} onSubmit={submit} />
+      {res?.valid === null && res.suggest && <Suggestions names={res.suggest} reason={res.reason} disabled={done} onPick={(n) => void submit(n)} />}
+      {finished && (
+        <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="flex flex-col items-center gap-1 text-center">
+          {res!.valid ? (
             <>
-              <div className="text-sm text-ink-400">{res.canonical}</div>
-              <div className="display text-5xl font-black text-white">{res.rarityPoints} <span className="text-2xl text-brand-400">rarity</span></div>
-              {res.percent !== undefined && <div className="text-sm text-ink-300">≈ {res.percent}% of players would say this</div>}
+              <div className="text-sm text-ink-400">
+                {res!.canonical}
+                {res!.corrected && <span className="text-ink-400"> (you typed “{res!.corrected}”)</span>}
+              </div>
+              <div className="display text-5xl font-black text-white">
+                {res!.rarityPoints} <span className="text-2xl text-brand-400">rarity</span>
+              </div>
+              {res!.percent !== undefined && <div className="text-sm text-ink-300">≈ {res!.percent}% of players would say this</div>}
             </>
           ) : (
-            <div className="display text-2xl font-bold text-bad-400">Not a valid answer (−10)</div>
+            <>
+              <div className="display text-2xl font-bold text-bad-400">Not accepted (−10)</div>
+              {res!.reason && <div className="max-w-md text-sm text-ink-300">{res!.reason}</div>}
+              <ReportRejection contentKey={`${round.gameSlug}:${round.mode}:${letter ?? ""}`} answer={res!.answer ?? ""} reason={res!.reason} />
+            </>
           )}
         </motion.div>
       )}

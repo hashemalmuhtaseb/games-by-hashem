@@ -10,6 +10,7 @@ import {
 import { compact } from "@/engine/normalize";
 import { NameIndex, type Resolution } from "@/engine/names";
 import { footballersDb, FOOTBALLERS_DB_SOURCE } from "./footballers-db";
+import { ANSWER_ADDITIONS } from "./datasets/answer-additions";
 
 export interface Category {
   id: string;
@@ -180,10 +181,16 @@ const DEFS: CategoryDef[] = [
   { id: "usstates", label: "US states", prompt: "Name a US state", icon: "🇺🇸", entries: US_STATES, letters: true, noun: "US state" },
 ];
 
+function withAdditions(id: string, list: WordEntry[]): WordEntry[] {
+  const extra = (ANSWER_ADDITIONS[id] ?? []).flatMap((g) => parseFlat(g.entries.join(";"), g.tier));
+  return extra.length ? [...list, ...extra] : list;
+}
+
 function makeCategory(d: CategoryDef): Category {
   const { entries, ...rest } = d;
-  let cached: WordEntry[] | null = typeof entries === "function" ? null : dedupe(entries);
-  const build = typeof entries === "function" ? entries : null;
+  let cached: WordEntry[] | null = typeof entries === "function" ? null : dedupe(withAdditions(d.id, entries));
+  // Generated lists are merged by exact name only (see footballerEntries), never deduped by alias.
+  const build = typeof entries === "function" ? () => withAdditions(d.id, entries()) : null;
   const cat = { ...rest } as Category;
   // Big lists (footballers) load on first use rather than at import.
   Object.defineProperty(cat, "entries", { enumerable: true, get: () => (cached ??= build!()) });

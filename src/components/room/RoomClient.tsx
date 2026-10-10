@@ -369,7 +369,7 @@ export function RoomClient({ code }: { code: string }) {
 
       {/* Phone chat: a sheet that rises from the bottom. */}
       <button
-        className="btn-ghost fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 h-12 w-12 rounded-full p-0 shadow-[0_8px_24px_-6px_rgb(0_0_0/0.6)] lg:hidden"
+        className={`btn-ghost fixed right-4 z-40 h-12 w-12 ${state.phase === "lobby" ? "bottom-28" : "bottom-[max(1rem,env(safe-area-inset-bottom))]"} rounded-full p-0 shadow-[0_8px_24px_-6px_rgb(0_0_0/0.6)] lg:hidden`}
         onClick={() => {
           setChatOpen((o) => !o);
           setUnread(0);

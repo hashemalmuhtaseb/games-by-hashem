@@ -4,6 +4,7 @@ import { compact, findMatch, matchesAny, normalize } from "./normalize";
 import { clueQuality, closeness, computePoints } from "./scoring";
 import { distanceOf, parseGuess } from "./closest";
 import { checkStake, oddsForDifficulty, profitFor, wagerNet, type Odds } from "./chips";
+import { isCorrectDiagnosis, MYSTERY_BUDGET, MYSTERY_MAX_GUESSES, MYSTERY_WRONG_PENALTY, mysteryPoints } from "./games/medicine";
 import { rarityFor, answerKey, commonPointsFromProbability } from "./rarity";
 import { isDictionaryWord, botWord } from "./dictionary";
 import type { ActContext, ActResult, Action, PlayerRoundState, Round, RoundHandler, RoundKind } from "./types";
@@ -569,7 +570,99 @@ const letters: RoundHandler = {
   },
 };
 
-export const HANDLERS: Record<RoundKind, RoundHandler> = { choice, text, number, clues, reveal, order, groups, multi, rare, sort, map, wager, chain, memory, letters };
+// ───────────────────────── case (Diagnose the Patient) ─────────────────────────
+const HINT_FACTOR = 0.7;
+const caseHandler: RoundHandler = {
+  initState: () => ({ data: { hintUsed: false } }),
+  act(round, state, action, ctx) {
+    const data = state.data as { hintUsed: boolean };
+    if (action.type === "hint") {
+      if (data.hintUsed) return { error: "You've already used the hint." };
+      data.hintUsed = true;
+      return { reveal: { hint: (round.secret.data as { hint?: string } | undefined)?.hint ?? "" } };
+    }
+    if (action.type === "give-up") {
+      finish(round, state, ctx, { correct: false });
+      return {};
+    }
+    if (action.type !== "answer") return { error: "unsupported" };
+    const hintFactor = data.hintUsed ? HINT_FACTOR : 1;
+    if (round.pub.options) {
+      const id = typeof action.value === "string" ? action.value : "";
+      if (!round.pub.options.some((o) => o.id === id)) return { error: "invalid option" };
+      const correct = id === round.secret.correctOptionId;
+      finish(round, state, ctx, { correct, quality: correct ? hintFactor : 0, answerLabel: optionLabel(round, id) ?? id });
+      return { feedback: { correct } };
+    }
+    const v = str(action.value);
+    if (!v) return { error: "empty answer" };
+    state.attempts.push(v);
+    const caseId = (round.secret.data as { caseId?: string } | undefined)?.caseId;
+    if (caseId ? isCorrectDiagnosis(v, caseId) : matchesAny(v, round.secret.accept ?? [])) {
+      const wrong = state.attempts.length - 1;
+      finish(round, state, ctx, { correct: true, quality: hintFactor * Math.max(0.4, 1 - wrong * ctx.scoring.wrongAttemptPenalty), answerLabel: v });
+      return { feedback: { correct: true } };
+    }
+    const left = 2 - state.attempts.length;
+    if (left <= 0) {
+      finish(round, state, ctx, { correct: false, answerLabel: v });
+      return { feedback: { correct: false, attemptsLeft: 0 } };
+    }
+    return { feedback: { correct: false, attemptsLeft: left } };
+  },
+};
+
+// ───────────────────────── investigate (Medical Mystery) ─────────────────────────
+const investigate: RoundHandler = {
+  initState: () => ({ data: { unlocked: [] as string[], spent: 0, wrong: 0, wrongIds: [] as string[] } }),
+  act(round, state, action, ctx) {
+    const data = state.data as { unlocked: string[]; spent: number; wrong: number; wrongIds: string[] };
+    const sections = (round.secret.data as { sections: Record<string, string[]> }).sections;
+    const clues = (round.pub.extra?.clues as { id: string; cost: number }[]) ?? [];
+    const finishWith = (correct: boolean, label?: string) => {
+      const points = mysteryPoints({ correct, spent: data.spent, wrong: data.wrong, elapsedMs: Math.max(0, ctx.now - state.startedAt), timeLimitMs: round.pub.timeLimitSec * 1000, cluesUsed: data.unlocked.length });
+      finish(round, state, ctx, { correct, fixedPoints: points, answerLabel: label });
+      return points;
+    };
+    if (action.type === "clue") {
+      const clue = clues.find((c) => c.id === action.value);
+      if (!clue || !sections[clue.id]) return { error: "No such clue." };
+      if (data.unlocked.includes(clue.id)) return { error: "Already unlocked." };
+      data.unlocked.push(clue.id);
+      data.spent += clue.cost;
+      state.cluesUsed = data.unlocked.length;
+      return { reveal: { clue: clue.id, items: sections[clue.id] }, feedback: { spent: data.spent, remaining: MYSTERY_BUDGET - data.spent } };
+    }
+    if (action.type === "give-up") {
+      data.wrong = Math.max(1, data.wrong);
+      finishWith(false);
+      return {};
+    }
+    if (action.type !== "answer") return { error: "unsupported" };
+    const id = typeof action.value === "string" ? action.value : "";
+    if (!round.pub.options?.some((o) => o.id === id)) return { error: "invalid option" };
+    if (data.wrongIds.includes(id)) return { error: "You've already ruled that out." };
+    if (id === round.secret.correctOptionId) {
+      const points = finishWith(true, optionLabel(round, id));
+      return { feedback: { correct: true, points } };
+    }
+    data.wrong++;
+    data.wrongIds.push(id);
+    if (data.wrong >= MYSTERY_MAX_GUESSES) {
+      const points = finishWith(false, optionLabel(round, id));
+      return { feedback: { correct: false, points, guessesLeft: 0 } };
+    }
+    return { feedback: { correct: false, guessesLeft: MYSTERY_MAX_GUESSES - data.wrong, penalty: MYSTERY_WRONG_PENALTY } };
+  },
+  timeout(round, state, ctx) {
+    const data = state.data as { spent: number; wrong: number; unlocked: string[] };
+    data.wrong = Math.max(1, data.wrong);
+    const points = mysteryPoints({ correct: false, spent: data.spent, wrong: data.wrong, elapsedMs: 0, timeLimitMs: 1, cluesUsed: data.unlocked.length });
+    finish(round, state, ctx, { correct: false, fixedPoints: points, answerLabel: "No diagnosis" });
+  },
+};
+
+export const HANDLERS: Record<RoundKind, RoundHandler> = { choice, text, number, clues, reveal, order, groups, multi, rare, sort, map, wager, chain, memory, letters, case: caseHandler, investigate };
 
 export function newPlayerState(round: Round, now: number): PlayerRoundState {
   const base: PlayerRoundState = { startedAt: now, cluesUsed: 0, attempts: [], done: false, correct: false, quality: 0, points: 0, data: {} };

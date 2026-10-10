@@ -313,6 +313,15 @@ function resumeFor(r: Room, playerId: string) {
   if (l.round.handler === "groups") out.found = ((st.data.found as number[]) ?? []).map((i) => s.groups![i]);
   if (l.round.handler === "map") out.guesses = st.data.guesses;
   if (l.round.handler === "multi") out.found = st.data.foundLabels ?? [];
+  if (l.round.handler === "case" && st.data.hintUsed) out.hint = (s.data as { hint?: string } | undefined)?.hint;
+  if (l.round.handler === "investigate") {
+    const unlocked = (st.data.unlocked as string[]) ?? [];
+    const sections = (s.data as { sections: Record<string, string[]> }).sections;
+    const labels = new Map(((l.pub.extra?.clues as { id: string; label: string }[]) ?? []).map((c) => [c.id, c.label]));
+    out.opened = unlocked.map((id) => ({ id, label: labels.get(id) ?? id, items: sections[id] ?? [] }));
+    out.spent = st.data.spent;
+    out.wrongIds = st.data.wrongIds;
+  }
   return out;
 }
 

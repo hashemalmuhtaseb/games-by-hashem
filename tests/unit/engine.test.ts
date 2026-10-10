@@ -46,6 +46,10 @@ async function correctActions(r: Round): Promise<Action[] | null> {
     }
     case "letters":
       return [{ type: "answer", value: r.secret.answerLabel.toLowerCase() }];
+    case "case":
+      return [{ type: "answer", value: r.pub.options ? r.secret.correctOptionId! : r.secret.accept![0] }];
+    case "investigate":
+      return [{ type: "clue", value: "symptoms" }, { type: "answer", value: r.secret.correctOptionId! }];
     default: {
       const a = await correctAction(r);
       return a ? [a as Action] : null;

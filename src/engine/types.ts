@@ -27,10 +27,12 @@ export type RoundKind =
   | "chain" // word chain against a bot
   | "memory" // study then answer
   | "reveal" // image becomes clearer over time
-  | "letters"; // make the longest dictionary word from a set of letters
+  | "letters" // make the longest dictionary word from a set of letters
+  | "case" // read a patient case, name the diagnosis (choice or text), optional hint
+  | "investigate"; // unlock clues at a cost, then diagnose
 
 /** Public name lists used for typing autocomplete. */
-export type SuggestSet = "footballers" | "managers" | "clubs";
+export type SuggestSet = "footballers" | "managers" | "clubs" | "diagnoses";
 
 export type MediaRef =
   | { type: "image"; url: string; alt: string; aspect?: number; frame?: "flag" | "square" | "wide" }
@@ -208,7 +210,8 @@ export type Action =
   | { type: "give-up" }
   | { type: "bet"; value: number }
   | { type: "ready" }
-  | { type: "finish" };
+  | { type: "finish" }
+  | { type: "clue"; value: string };
 
 export interface ActContext {
   now: number;

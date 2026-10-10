@@ -26,6 +26,11 @@ export interface Resume {
   reveal?: { prompt?: string; options?: OptionPublic[] };
   found?: unknown[];
   guesses?: unknown[];
+  /** Medicine: hint already shown; clues already unlocked; spent points; ruled-out options. */
+  hint?: string;
+  opened?: { id: string; label: string; items: string[] }[];
+  spent?: number;
+  wrongIds?: string[];
 }
 
 interface Ctl {
@@ -1198,6 +1203,191 @@ function LettersKind({ round, act, locked, resume }: Ctl) {
   );
 }
 
+// ───────────────────────── medicine ─────────────────────────
+
+type CaseSheet = { patient: string; complaint: string; specialty: string; sections: { id: string; label: string; items: string[] }[]; disclaimer: string };
+
+function CaseSheetView({ sheet, sections }: { sheet: { patient: string; complaint: string; specialty?: string; disclaimer: string }; sections: { id: string; label: string; items: string[] }[] }) {
+  return (
+    <article className="w-full max-w-3xl overflow-hidden rounded-2xl border border-sky-300/15 bg-[#0d1620]/90 text-left shadow-xl">
+      <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-sky-300/10 bg-sky-400/[0.06] px-5 py-3">
+        <div>
+          <div className="text-[11px] font-semibold tracking-[0.14em] text-sky-300/80 uppercase">Patient</div>
+          <div className="font-semibold text-white">{sheet.patient}</div>
+        </div>
+        {sheet.specialty && <span className="rounded-md border border-sky-300/20 px-2 py-0.5 text-xs text-sky-200/80">{sheet.specialty}</span>}
+      </header>
+      <div className="px-5 py-4">
+        <div className="text-[11px] font-semibold tracking-[0.14em] text-sky-300/80 uppercase">Presenting complaint</div>
+        <p className="mt-1 text-lg text-white">“{sheet.complaint}”</p>
+      </div>
+      {sections.length > 0 && (
+        <div className="grid gap-px bg-sky-300/10 sm:grid-cols-2">
+          {sections.map((s) => (
+            <motion.section key={s.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="bg-[#0d1620] px-5 py-3">
+              <h3 className="text-[11px] font-semibold tracking-[0.14em] text-sky-300/80 uppercase">{s.label}</h3>
+              <ul className="mt-1.5 space-y-1 text-sm text-ink-100">
+                {s.items.map((it, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-sky-300/60" />
+                    <span>{it}</span>
+                  </li>
+                ))}
+              </ul>
+            </motion.section>
+          ))}
+        </div>
+      )}
+      <footer className="border-t border-sky-300/10 px-5 py-2 text-[11px] text-ink-400">{sheet.disclaimer}</footer>
+    </article>
+  );
+}
+
+function CaseKind({ round, act, locked, reveal, resume }: Ctl) {
+  const sheet = round.extra?.case as CaseSheet;
+  const [hint, setHint] = useState<string | null>((resume?.hint as string | undefined) ?? null);
+  const [picked, setPicked] = useState<string | null>(null);
+  const [shake, setShake] = useState(0);
+  const [wrong, setWrong] = useState<string[]>([]);
+  const toast = useToast();
+  const done = locked || !!resume?.done;
+  return (
+    <div className="flex w-full flex-col items-center gap-4">
+      <CaseSheetView sheet={sheet} sections={sheet.sections} />
+      {hint && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-3xl rounded-xl border border-warn-400/30 bg-warn-400/10 px-4 py-2.5 text-sm text-warn-400" role="note">
+          Hint: {hint}
+        </motion.div>
+      )}
+      {round.options ? (
+        <OptionGrid
+          options={round.options}
+          picked={picked}
+          correctId={reveal?.correctOptionId}
+          locked={done || !!picked}
+          onPick={async (id) => {
+            setPicked(id);
+            play("click");
+            const r = await act({ type: "answer", value: id });
+            if (r?.error) setPicked(null);
+          }}
+        />
+      ) : (
+        <>
+          <TextAnswer
+            placeholder={round.input?.placeholder}
+            suggestSet={round.input?.suggest}
+            disabled={done}
+            shake={shake}
+            onSubmit={async (v) => {
+              const r = await act({ type: "answer", value: v });
+              const f = r?.feedback as { correct?: boolean; attemptsLeft?: number } | undefined;
+              if (f && f.correct === false) {
+                setWrong((w) => [...w, v]);
+                setShake((s) => s + 1);
+                play("wrong");
+                if (f.attemptsLeft) toast.show(`Not quite — ${f.attemptsLeft} more ${f.attemptsLeft === 1 ? "try" : "tries"}`, "bad");
+              }
+            }}
+          />
+          {wrong.length > 0 && (
+            <div className="flex flex-wrap justify-center gap-2">
+              {wrong.map((w, i) => (
+                <span key={i} className="chip border-bad-500/30 text-bad-400 line-through">
+                  {w}
+                </span>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+      {toast.node}
+      {!done && !hint && (
+        <button
+          className="text-sm text-ink-400 hover:text-white"
+          onClick={async () => {
+            const r = await act({ type: "hint" });
+            if (r?.reveal?.hint) {
+              setHint(r.reveal.hint as string);
+              play("hint");
+            }
+          }}
+        >
+          Show a hint (−30% points)
+        </button>
+      )}
+    </div>
+  );
+}
+
+type Clue = { id: string; label: string; cost: number };
+
+function InvestigateKind({ round, act, locked, reveal, resume }: Ctl) {
+  const clues = (round.extra?.clues as Clue[]) ?? [];
+  const budget = (round.extra?.budget as number) ?? 100;
+  const [opened, setOpened] = useState<{ id: string; label: string; items: string[] }[]>(() => (resume?.opened as { id: string; label: string; items: string[] }[]) ?? []);
+  const [spent, setSpent] = useState<number>((resume?.spent as number) ?? 0);
+  const [ruledOut, setRuledOut] = useState<string[]>((resume?.wrongIds as string[]) ?? []);
+  const [picked, setPicked] = useState<string | null>(null);
+  const toast = useToast();
+  const done = locked || !!resume?.done;
+  const order = clues.map((c) => c.id);
+  const sections = opened.slice().sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+  return (
+    <div className="flex w-full flex-col items-center gap-4">
+      <div className="flex w-full max-w-3xl items-center justify-between rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm">
+        <span className="text-ink-300">Points left if you're right now</span>
+        <span className="display text-xl font-bold text-white tabular-nums">{Math.max(10, budget - spent - ruledOut.length * 20)}</span>
+      </div>
+      <CaseSheetView sheet={{ patient: round.extra?.patient as string, complaint: round.extra?.complaint as string, disclaimer: round.extra?.disclaimer as string }} sections={sections} />
+      <div className="grid w-full max-w-3xl grid-cols-2 gap-2 sm:grid-cols-4">
+        {clues.map((c) => {
+          const have = opened.some((o) => o.id === c.id);
+          return (
+            <button
+              key={c.id}
+              disabled={done || have}
+              onClick={async () => {
+                const r = await act({ type: "clue", value: c.id });
+                if (r?.reveal?.items) {
+                  setOpened((o) => [...o, { id: c.id, label: c.label, items: r.reveal!.items as string[] }]);
+                  setSpent((r.feedback?.spent as number) ?? spent + c.cost);
+                  play("hint");
+                } else if (r?.error) toast.show(r.error, "bad");
+              }}
+              className={`rounded-xl border px-3 py-2 text-left text-sm transition ${have ? "border-sky-300/20 bg-sky-400/10 text-sky-200/70" : "border-white/10 bg-white/[0.04] text-ink-100 hover:border-sky-300/40 hover:bg-sky-400/10"}`}
+            >
+              <span className="block font-semibold">{c.label}</span>
+              <span className="text-xs text-ink-400">{have ? "Unlocked" : `−${c.cost} points`}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="label">Your diagnosis</div>
+      <OptionGrid
+        options={round.options ?? []}
+        picked={picked}
+        correctId={reveal?.correctOptionId}
+        wrongIds={ruledOut}
+        locked={done}
+        onPick={async (id) => {
+          if (ruledOut.includes(id)) return;
+          setPicked(id);
+          const r = await act({ type: "answer", value: id });
+          const f = r?.feedback as { correct?: boolean; guessesLeft?: number; penalty?: number } | undefined;
+          if (f?.correct === false) {
+            setRuledOut((x) => [...x, id]);
+            setPicked(null);
+            play("wrong");
+            if (f.guessesLeft) toast.show(`Not this one (−${f.penalty ?? 20}). ${f.guessesLeft} ${f.guessesLeft === 1 ? "guess" : "guesses"} left.`, "bad");
+          }
+        }}
+      />
+      {toast.node}
+    </div>
+  );
+}
+
 // ───────────────────────── timer ─────────────────────────
 
 export function TimerBar({ deadline, offset, total, paused, onZero, stopped }: { deadline: number; offset: number; total: number; paused?: boolean; onZero?: () => void; stopped?: boolean }) {
@@ -1306,6 +1496,10 @@ export function RoundPlayer({
         return <MemoryKind {...ctl} />;
       case "letters":
         return <LettersKind {...ctl} />;
+      case "case":
+        return <CaseKind {...ctl} />;
+      case "investigate":
+        return <InvestigateKind {...ctl} />;
     }
   })();
   return (
